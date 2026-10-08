@@ -53,6 +53,7 @@ export function StaySelector({ listing, range, onRangeChange, guests, onGuestsCh
   const dateTrigger = useRef<HTMLElement | null>(null);
   const guestPanel = useRef<HTMLDivElement>(null);
   const guestTrigger = useRef<HTMLButtonElement>(null);
+  const editingCheckout = useRef(false);
   const desktop = useSyncExternalStore(subscribeDesktop, () => window.matchMedia("(min-width: 950px)").matches, () => false);
   const guestCount = guests.adults + guests.children;
   const hasDates = Boolean(range?.from && range.to);
@@ -61,10 +62,8 @@ export function StaySelector({ listing, range, onRangeChange, guests, onGuestsCh
 
   useEffect(() => {
     if (!datesOpen || !desktop) return;
-    const opener = document.activeElement instanceof HTMLElement ? document.activeElement : null;
-    dateTrigger.current = opener;
-    const frame = requestAnimationFrame(() => datePanel.current?.querySelector<HTMLInputElement>("input")?.focus());
-    function close() { setDatesOpen(false); dateTrigger.current?.focus(); }
+    const frame = requestAnimationFrame(() => datePanel.current?.querySelector<HTMLInputElement>(`input[aria-label="${editingCheckout.current ? "Checkout" : "Check-in"} date"]`)?.focus({ preventScroll: true }));
+    function close() { setDatesOpen(false); dateTrigger.current?.focus({ preventScroll: true }); }
     function outside(event: MouseEvent) { if (event.target instanceof Node && !datePanel.current?.contains(event.target)) close(); }
     function keydown(event: KeyboardEvent) {
       if (event.key === "Escape") { event.preventDefault(); close(); }
@@ -82,8 +81,8 @@ export function StaySelector({ listing, range, onRangeChange, guests, onGuestsCh
   useEffect(() => {
     if (!guestsOpen || !desktop) return;
     const opener = guestTrigger.current;
-    const frame = requestAnimationFrame(() => guestPanel.current?.querySelector<HTMLButtonElement>("button:not(:disabled)")?.focus());
-    const close = () => { setGuestsOpen(false); opener?.focus(); };
+    const frame = requestAnimationFrame(() => guestPanel.current?.querySelector<HTMLButtonElement>("button:not(:disabled)")?.focus({ preventScroll: true }));
+    const close = () => { setGuestsOpen(false); opener?.focus({ preventScroll: true }); };
     function outside(event: MouseEvent) { if (event.target instanceof Node && !guestPanel.current?.contains(event.target) && !opener?.contains(event.target)) close(); }
     function keydown(event: KeyboardEvent) {
       if (event.key === "Escape") { event.preventDefault(); close(); }
@@ -98,8 +97,16 @@ export function StaySelector({ listing, range, onRangeChange, guests, onGuestsCh
     return () => { cancelAnimationFrame(frame); document.removeEventListener("mousedown", outside); document.removeEventListener("keydown", keydown); };
   }, [guestsOpen, desktop]);
 
+  function openDates(checkout = false) {
+    dateTrigger.current = document.activeElement instanceof HTMLElement ? document.activeElement : null;
+    editingCheckout.current = checkout;
+    setDateEntryError(null);
+    setGuestsOpen(false);
+    setDatesOpen(true);
+  }
+
   function reserve() {
-    if (!hasDates) setDatesOpen(true);
+    if (!hasDates) openDates();
     else onReserve();
   }
 
@@ -107,6 +114,7 @@ export function StaySelector({ listing, range, onRangeChange, guests, onGuestsCh
     setDateEntryError(null);
     if (!date) { onRangeChange(checkout && range?.from ? { from: range.from } : undefined); return; }
     if (toDateString(date) < toDateString(new Date())) { setDateEntryError("Choose today or a later date."); return; }
+    if (!checkout && bookedRanges.some(period => toDateString(date) >= period.check_in && toDateString(date) < period.check_out)) { setDateEntryError("Those dates are no longer available."); return; }
     const next = checkout ? { from: range?.from, to: date } : { from: date, to: range?.to && range.to > date ? range.to : undefined };
     if (next.from && next.to) {
       const nights = countNights(toDateString(next.from),toDateString(next.to));
@@ -130,11 +138,11 @@ export function StaySelector({ listing, range, onRangeChange, guests, onGuestsCh
       <div className={styles.bookingCard}>
         <div className={styles.bookingPrice}>{hasDates ? price : <strong>Add dates for prices</strong>}</div>
         <div className={styles.pickerBox}>
-          <div className={styles.dateCells}><button onClick={() => setDatesOpen(true)} aria-label="Choose check-in date"><span>CHECK-IN</span>{range?.from ? range.from.toLocaleDateString("en-GB", { day: "2-digit", month: "2-digit", year: "numeric" }) : "Add date"}</button><button onClick={() => setDatesOpen(true)} aria-label="Choose checkout date"><span>CHECKOUT</span>{range?.to ? range.to.toLocaleDateString("en-GB", { day: "2-digit", month: "2-digit", year: "numeric" }) : "Add date"}</button></div>
+          <div className={styles.dateCells}><button onClick={() => openDates()} aria-label="Choose check-in date" aria-haspopup="dialog" aria-expanded={datesOpen}><span>CHECK-IN</span>{range?.from ? range.from.toLocaleDateString("en-GB", { day: "2-digit", month: "2-digit", year: "numeric" }) : "Add date"}</button><button onClick={() => openDates(true)} aria-label="Choose checkout date" aria-haspopup="dialog" aria-expanded={datesOpen}><span>CHECKOUT</span>{range?.to ? range.to.toLocaleDateString("en-GB", { day: "2-digit", month: "2-digit", year: "numeric" }) : "Add date"}</button></div>
           <button ref={guestTrigger} className={styles.guestCell} onClick={() => { setDatesOpen(false); setGuestsOpen(!guestsOpen); }} aria-haspopup="dialog" aria-expanded={guestsOpen}><span><strong>GUESTS</strong>{plural(guestCount, "guest")}{guests.infants > 0 ? `, ${plural(guests.infants, "infant")}` : ""}</span>{guestsOpen ? <ChevronUp size={18} aria-hidden="true" /> : <ChevronDown size={18} aria-hidden="true" />}</button>
         </div>
-        {guestsOpen && desktop && <div className={styles.guestPopover} ref={guestPanel} role="dialog" aria-label="Guests">{guestRows}<button className={styles.textButton} onClick={() => { setGuestsOpen(false); guestTrigger.current?.focus(); }}>Close</button></div>}
-        {datesOpen && desktop && <div className={styles.datePopover} ref={datePanel} role="dialog" aria-label="Choose your travel dates"><div className={styles.popoverHeading}><div><h2>{hasDates ? calendarTitle : "Select dates"}</h2><p>{range?.from && range.to ? formatDateRange(range.from, range.to) : "Add your travel dates for exact pricing"}</p></div><div className={styles.popoverDateFields}><DateEntry label="Check-in" date={range?.from} onCommit={(date)=>enterDate(date,false)}/><DateEntry label="Checkout" date={range?.to} onCommit={(date)=>enterDate(date,true)}/></div></div>{dateEntryError && <p className={styles.inlineError} role="alert">{dateEntryError}</p>}{availabilityError ? <p className={styles.inlineError}>We could not load availability. <button onClick={onRetry}>Try again</button></p> : availabilityLoading ? <div className={`${styles.skeleton} ${styles.calendarSkeleton}`} /> : <DatePicker minNights={listing.min_nights} maxNights={listing.max_nights} value={range} onChange={onRangeChange} bookedRanges={bookedRanges} numberOfMonths={2} />}<p className={styles.minimumStay}>Minimum stay: {plural(listing.min_nights, "night")}</p><div className={styles.calendarActions}><button className={styles.textButton} onClick={() => onRangeChange(undefined)}>Clear dates</button><button className={styles.darkButton} onClick={() => { setDatesOpen(false); dateTrigger.current?.focus(); }}>Close</button></div></div>}
+        {guestsOpen && desktop && <div className={styles.guestPopover} ref={guestPanel} role="dialog" aria-label="Guests">{guestRows}<button className={styles.textButton} onClick={() => { setGuestsOpen(false); guestTrigger.current?.focus({ preventScroll: true }); }}>Close</button></div>}
+        {datesOpen && desktop && <div className={styles.datePopover} ref={datePanel} role="dialog" aria-label="Choose your travel dates"><div className={styles.popoverHeading}><div><h2>{hasDates ? calendarTitle : "Select dates"}</h2><p>{range?.from && range.to ? formatDateRange(range.from, range.to) : "Add your travel dates for exact pricing"}</p></div><div className={styles.popoverDateFields}><DateEntry label="Check-in" date={range?.from} onCommit={(date)=>enterDate(date,false)}/><DateEntry label="Checkout" date={range?.to} onCommit={(date)=>enterDate(date,true)}/></div></div>{dateEntryError && <p className={styles.inlineError} role="alert">{dateEntryError}</p>}{availabilityError ? <p className={styles.inlineError}>We could not load availability. <button onClick={onRetry}>Try again</button></p> : availabilityLoading ? <div className={`${styles.skeleton} ${styles.calendarSkeleton}`} /> : <DatePicker minNights={listing.min_nights} maxNights={listing.max_nights} value={range} onChange={onRangeChange} bookedRanges={bookedRanges} numberOfMonths={2} />}<p className={styles.minimumStay}>Minimum stay: {plural(listing.min_nights, "night")}</p><div className={styles.calendarActions}><button className={styles.textButton} onClick={() => onRangeChange(undefined)}>Clear dates</button><button className={styles.darkButton} onClick={() => { setDatesOpen(false); dateTrigger.current?.focus({ preventScroll: true }); }}>Close</button></div></div>}
         {availabilityError && <p className={styles.inlineError}>We could not load availability. <button onClick={onRetry}>Try again</button></p>}
         {quoteError && <p className={styles.inlineError} role="alert">{quoteError}</p>}
         {quote && !quote.available && <p className={styles.inlineError} role="alert">These dates are unavailable. Choose another stay.</p>}
@@ -144,7 +152,7 @@ export function StaySelector({ listing, range, onRangeChange, guests, onGuestsCh
       </div>
       <button className={styles.report} onClick={() => setReportOpen(true)}><Flag size={16} aria-hidden="true" />Report this listing</button>
     </aside>
-    <div className={styles.mobileReserve}><div><div>{hasDates ? price : <strong>Add dates for prices</strong>}</div><button onClick={() => setDatesOpen(true)}>{range?.from && range.to ? formatDateRange(range.from, range.to) : listing.rating !== null ? `★ ${listing.rating.toFixed(2)}` : "Add dates"}</button>{quoteError && <span className={styles.inlineError}>Check your dates</span>}</div><GradientButton onClick={reserve} disabled={disabled}>{reserving ? "Checking..." : hasDates ? "Reserve" : "Check availability"}</GradientButton></div>
+    <div className={styles.mobileReserve}><div><div>{hasDates ? price : <strong>Add dates for prices</strong>}</div><button onClick={() => openDates()}>{range?.from && range.to ? formatDateRange(range.from, range.to) : listing.rating !== null ? `★ ${listing.rating.toFixed(2)}` : "Add dates"}</button>{quoteError && <span className={styles.inlineError}>Check your dates</span>}</div><GradientButton onClick={reserve} disabled={disabled}>{reserving ? "Checking..." : hasDates ? "Reserve" : "Check availability"}</GradientButton></div>
     <Modal open={datesOpen && !desktop} onClose={() => setDatesOpen(false)} title={calendarTitle} presentation="calendar" width={720} footer={<div className={styles.calendarSave}><div><strong>{hasDates ? price : "Add dates for prices"}</strong>{listing.rating !== null && <small>★ {listing.rating.toFixed(2)}</small>}</div><button disabled={!hasDates || Boolean(quoteError)} className={styles.saveDates} onClick={()=>setDatesOpen(false)}>Save</button></div>}>
       <div className={styles.mobileCalendar}><button className={styles.clearMobileDates} onClick={()=>onRangeChange(undefined)}>Clear dates</button><div className={styles.mobileCalendarHeading}><h2>{calendarTitle}</h2><p>{range?.from && range.to ? formatDateRange(range.from,range.to) : "Add your travel dates for exact pricing"}</p><div className={styles.weekdayHeader} aria-hidden="true">{["S","M","T","W","T","F","S"].map((day,index)=><span key={index}>{day}</span>)}</div></div><div className={styles.mobileCalendarMonths}>{availabilityError ? <p className={styles.inlineError}>We could not load availability. <button onClick={onRetry}>Try again</button></p> : availabilityLoading ? <div className={`${styles.skeleton} ${styles.calendarSkeleton}`}/> : <DatePicker value={range} onChange={onRangeChange} bookedRanges={bookedRanges} minNights={listing.min_nights} maxNights={listing.max_nights} numberOfMonths={12} hideNavigation hideWeekdays/>}<p className={styles.minimumStay}>Minimum stay: {plural(listing.min_nights,"night")}</p></div></div>
     </Modal>

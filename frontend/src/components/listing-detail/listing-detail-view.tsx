@@ -3,7 +3,7 @@
 import { useQuery } from "@tanstack/react-query";
 import { Heart, Share } from "lucide-react";
 import { useRouter, useSearchParams } from "next/navigation";
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import { toast } from "sonner";
 import { DatePicker } from "@/components/calendar/date-picker";
 import { useAvailability } from "@/hooks/use-availability";
@@ -31,6 +31,19 @@ export function ListingDetailView({ listing, initialReviews }: { listing: Listin
   const wishlist = useWishlist();
   const availability = useAvailability(listing.id);
   const [reserving, setReserving] = useState(false);
+  const [navigationStuck, setNavigationStuck] = useState(false);
+  useEffect(() => {
+    const photos = document.getElementById("photos");
+    if (!photos) return;
+    const media = window.matchMedia("(min-width: 950px)");
+    const observer = new IntersectionObserver(([entry]) => {
+      if (entry) setNavigationStuck(media.matches && !entry.isIntersecting && entry.boundingClientRect.bottom <= 0);
+    });
+    observer.observe(photos);
+    const resize = () => { if (!media.matches) setNavigationStuck(false); };
+    media.addEventListener("change", resize);
+    return () => { observer.disconnect(); media.removeEventListener("change", resize); };
+  }, [listing.id]);
   const checkIn = search.get("checkin") ?? "";
   const checkOut = search.get("checkout") ?? "";
   const validStart = /^\d{4}-\d{2}-\d{2}$/.test(checkIn) && toDateString(parseDate(checkIn)) === checkIn && checkIn >= toDateString(new Date());
@@ -84,6 +97,9 @@ export function ListingDetailView({ listing, initialReviews }: { listing: Listin
 
   const title = range?.from && range.to ? `${countNights(toDateString(range.from), toDateString(range.to))} nights in ${listing.city}` : range?.from ? "Select checkout date" : "Select check-in date";
   return <div className={styles.page}>
+    <nav className={styles.sectionNavigation} data-detail-navigation={navigationStuck ? "stuck" : "idle"} aria-label="Listing sections" aria-hidden={!navigationStuck} inert={!navigationStuck}>
+      <div>{[{id:"photos",label:"Photos"},{id:"amenities",label:"Amenities"},{id:"reviews",label:"Reviews"},{id:"location",label:"Location"}].map(item => <button key={item.id} onClick={() => document.getElementById(item.id)?.scrollIntoView({ behavior: window.matchMedia("(prefers-reduced-motion: reduce)").matches ? "instant" : "smooth", block: "start" })}>{item.label}</button>)}</div>
+    </nav>
     <div className={styles.titleRow}><h1>{listing.title}</h1><div><button onClick={() => void share()}><Share size={16} aria-hidden="true" />Share</button><button disabled={wishlist.isBlocked} onClick={() => wishlist.toggle(listing.id)} aria-pressed={wishlist.savedIds.has(listing.id)}><Heart size={16} fill={wishlist.savedIds.has(listing.id) ? "var(--brand)" : "none"} aria-hidden="true" />{wishlist.savedIds.has(listing.id) ? "Saved" : "Save"}</button></div></div>
     <PhotoGallery title={listing.title} images={listing.image_urls} saved={wishlist.savedIds.has(listing.id)} onShare={() => void share()} onSave={() => wishlist.toggle(listing.id)} saveDisabled={wishlist.isBlocked} />
     <div className={styles.bodyGrid}><div className={styles.leftColumn}><ListingInformation listing={listing} /><section className={styles.section} id="availability"><h2>{title}</h2><p className={styles.secondary}>{range?.from && range.to ? formatDateRange(range.from, range.to) : "Add your travel dates for exact pricing"}</p>{availability.isPending ? <div className={`${styles.skeleton} ${styles.calendarSkeleton}`} /> : availability.isError ? <p className={styles.inlineError} role="alert">We could not load availability. <button onClick={() => void availability.refetch()}>Try again</button></p> : <><div className={styles.desktopCalendar}><DatePicker minNights={listing.min_nights} maxNights={listing.max_nights} value={range} onChange={changeRange} bookedRanges={availability.data} numberOfMonths={2} /></div><div className={styles.singleCalendar}><DatePicker minNights={listing.min_nights} maxNights={listing.max_nights} value={range} onChange={changeRange} bookedRanges={availability.data} numberOfMonths={1} /></div><p className={styles.minimumStay}>Minimum stay: {listing.min_nights} {listing.min_nights === 1 ? "night" : "nights"}</p><div className={styles.calendarFooter}><button className={styles.textButton} onClick={() => changeRange(undefined)}>Clear dates</button></div></>}</section></div>
