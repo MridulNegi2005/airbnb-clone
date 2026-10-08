@@ -28,7 +28,10 @@ export function patchPreviewManifest(projectDirectory) {
     // A newer adapter may no longer use this guarded filesystem-free loader.
     throw new Error("OpenNext manifest loader guard changed; review the preview-props compatibility patch before deploying.");
   }
-  if (handler.slice(loaderStart, loaderEnd).includes("/server/preview-props.json")) return;
+  // Linux builds may list this filename inside another embedded manifest.
+  // Only an actual loader branch means the preview props are already handled.
+  const loader = handler.slice(loaderStart, loaderEnd);
+  if (/\.endsWith\(\s*["']\/?(?:\.next\/)?server\/preview-props\.json["']\s*\)\s*\)\s*return\s/.test(loader)) return;
   if (!/^16\.4\./.test(nextVersion) || adapterVersion !== "1.20.9") {
     throw new Error(`Review preview-props manifest compatibility for Next ${nextVersion} and OpenNext ${adapterVersion} before deploying.`);
   }
