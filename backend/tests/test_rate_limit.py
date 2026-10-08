@@ -21,6 +21,10 @@ def clock(monkeypatch: pytest.MonkeyPatch) -> FakeClock:
     return fake
 
 
+def key_for(host: str) -> str:
+    return client_key(SimpleNamespace(client=SimpleNamespace(host=host)))  # type: ignore[arg-type]
+
+
 def test_limit_resets_after_the_window(clock: FakeClock) -> None:
     limiter = RateLimiter(limit=2, window_seconds=60)
     assert limiter.allow("a") and limiter.allow("a")
@@ -29,22 +33,31 @@ def test_limit_resets_after_the_window(clock: FakeClock) -> None:
     assert limiter.allow("a")
 
 
-def test_stale_keys_are_swept_and_table_is_capped(clock: FakeClock) -> None:
-    limiter = RateLimiter(limit=5, window_seconds=60, max_keys=2)
+def test_full_table_evicts_the_least_recently_seen_client(clock: FakeClock) -> None:
+    limiter = RateLimiter(limit=1, window_seconds=60, max_keys=2)
     assert limiter.allow("a") and limiter.allow("b")
-    assert not limiter.allow("c")
+    assert not limiter.allow("a")
 
-    clock.now += 61
     assert limiter.allow("c")
-    assert set(limiter._hits) == {"c"}
+    assert list(limiter._hits) == ["a", "c"]
+    assert not limiter.allow("a")
 
 
 def test_ipv6_clients_are_grouped_by_network() -> None:
-    def request(host: str) -> SimpleNamespace:
-        return SimpleNamespace(client=SimpleNamespace(host=host))
+    assert key_for("2001:db8::1") == key_for("2001:db8::ffff") == "2001:db8::/64"
+    assert key_for("2001:db8::1") != key_for("2001:db8:0:1::1")
+    assert key_for("203.0.113.7") == "203.0.113.7"
 
-    assert client_key(request("2001:db8::1")) == client_key(request("2001:db8::ffff"))
-    assert client_key(request("2001:db8::1")) != client_key(request("2001:db8:0:1::1"))
-    assert client_key(request("203.0.113.7")) == "203.0.113.7"
-    assert client_key(request("::ffff:203.0.113.7")) == "203.0.113.7"
-    assert client_key(request("::ffff:198.51.100.9")) == "198.51.100.9"
+
+@pytest.mark.parametrize(
+    ("host", "expected"),
+    [
+        ("::ffff:203.0.113.7", "203.0.113.7"),
+        ("2001:0:4136:e378:8000:63bf:3fff:fdd2", "192.0.2.45"),
+        ("2002:cb00:7107::1", "203.0.113.7"),
+        ("64:ff9b::cb00:7107", "203.0.113.7"),
+        ("::cb00:7107", "203.0.113.7"),
+    ],
+)
+def test_transition_addresses_are_keyed_by_their_ipv4_client(host: str, expected: str) -> None:
+    assert key_for(host) == expected

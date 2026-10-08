@@ -7,7 +7,8 @@ from sqlalchemy import select
 from app.database import SessionLocal
 from app.models import Booking, BookingStatus
 from app.seed import seed
-from app.seed_data import LISTINGS
+from app.seed_content import LISTINGS
+from tests.conftest import bearer
 
 
 def test_seed_creates_consistent_demo_data(client: TestClient) -> None:
@@ -28,8 +29,15 @@ def test_seed_creates_consistent_demo_data(client: TestClient) -> None:
     login = client.post(
         "/api/auth/login", json={"email": "rohan@example.com", "password": "demo-password"}
     )
-    headers = {"Authorization": f"Bearer {login.json()['access_token']}"}
+    assert login.status_code == 200
+    headers = bearer(login.json()["access_token"])
+
     trips = client.get("/api/bookings", headers=headers).json()
     assert {trip["status"] for trip in trips} == {"confirmed", "cancelled"}
-    assert any(not trip["has_review"] and trip["status"] == "confirmed" for trip in trips)
-    assert len(client.get("/api/wishlist", headers=headers).json()) == 5
+    today = date.today().isoformat()
+    assert any(
+        trip["status"] == "confirmed" and trip["check_out"] <= today and not trip["has_review"]
+        for trip in trips
+    )
+    assert len(client.get("/api/wishlists", headers=headers).json()) == 2
+    assert client.get("/api/conversations/unread-count", headers=headers).json() == {"count": 1}
