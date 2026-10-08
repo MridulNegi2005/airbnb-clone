@@ -4,13 +4,14 @@ import { DndContext, KeyboardSensor, PointerSensor, closestCenter, useSensor, us
 import { SortableContext, arrayMove, sortableKeyboardCoordinates, useSortable, rectSortingStrategy } from '@dnd-kit/sortable';
 import { Camera, GripVertical, ImagePlus, MoreHorizontal } from 'lucide-react';
 import { AppImage as Image } from '@/components/ui/app-image';
-import { ApiError, uploadPhoto } from '@/lib/api';
+import { ApiError, uploadPhoto, type UploadProgress } from '@/lib/api';
 import styles from './listing-form.module.css';
 
 type FailedUpload = { file: File; message: string };
+type PendingUpload = { file: File; progress: UploadProgress };
 function loadImage(url: string): Promise<void> { return new Promise((resolve, reject) => { const image = new window.Image(); const timer = setTimeout(() => { image.src = ''; reject(new Error('The photo took too long to load. Try a different URL.')); }, 10000); image.onload = () => { clearTimeout(timer); resolve(); }; image.onerror = () => { clearTimeout(timer); reject(new Error('This image could not load. Check the URL and try again.')); }; image.src = url; }); }
 export function PhotoStep({ photos, onChange, onBusyChange }: { photos: string[]; onChange: (photos: string[]) => void; onBusyChange: (busy: boolean) => void }) {
-  const [url, setUrl] = useState(''), [error, setError] = useState(''), [busy, setBusy] = useState(false), [uploading, setUploading] = useState<string[]>([]), [failures, setFailures] = useState<FailedUpload[]>([]), [tab, setTab] = useState<'upload' | 'url'>('upload'), [cooldown, setCooldown] = useState(0);
+  const [url, setUrl] = useState(''), [error, setError] = useState(''), [busy, setBusy] = useState(false), [uploading, setUploading] = useState<PendingUpload[]>([]), [failures, setFailures] = useState<FailedUpload[]>([]), [tab, setTab] = useState<'upload' | 'url'>('upload'), [cooldown, setCooldown] = useState(0);
   const latest = useRef(photos);
   const uploadLock = useRef(false);
   const input = useRef<HTMLInputElement>(null);
@@ -24,16 +25,17 @@ export function PhotoStep({ photos, onChange, onBusyChange }: { photos: string[]
     uploadLock.current = true;
     latest.current = photos;
     let cursor = 0;
+    setUploading(files.map(file => ({ file, progress: { phase: 'queued', retry: 0, waitSeconds: 0 } })));
     async function worker() { while (cursor < files.length) {
       const file = files[cursor++]; if (!file) continue;
-      setError(''); if (!['image/jpeg', 'image/png', 'image/webp'].includes(file.type)) { setFailures(old => [...old, { file, message: 'Use JPEG, PNG or WebP.' }]); continue; }
-      if (file.size > 8 * 1024 * 1024) { setFailures(old => [...old, { file, message: 'That photo is too large (max 8 MB).' }]); continue; }
+      setError(''); if (!['image/jpeg', 'image/png', 'image/webp'].includes(file.type)) { setFailures(old => [...old, { file, message: 'Use JPEG, PNG or WebP.' }]); setUploading(old => old.filter(item => item.file !== file)); continue; }
+      if (file.size > 8 * 1024 * 1024) { setFailures(old => [...old, { file, message: 'That photo is too large (max 8 MB).' }]); setUploading(old => old.filter(item => item.file !== file)); continue; }
       if (latest.current.length >= 20) { setError('You can add up to 20 photos.'); break; }
-      setUploading(old => [...old, file.name]);
-      try { const result = await uploadPhoto(file); addPhoto(result.url); } catch (problem) { if (problem instanceof ApiError && problem.status === 429) { setCooldown(problem.retryAfterSeconds || 60); for (const queued of files.slice(cursor)) setFailures(old => [...old, { file: queued, message: 'Upload paused. Try again after the rate limit resets.' }]); cursor = files.length; } setFailures(old => [...old, { file, message: problem instanceof Error ? problem.message : 'Upload failed.' }]); } finally { setUploading(old => { const next = [...old]; next.splice(next.indexOf(file.name), 1); return next; }); }
+      setUploading(old => old.map(item => item.file === file ? { ...item, progress: { phase: 'uploading', retry: 0, waitSeconds: 0 } } : item));
+      try { const result = await uploadPhoto(file, { onProgress: progress => setUploading(old => old.map(item => item.file === file ? { ...item, progress } : item)) }); addPhoto(result.url); } catch (problem) { if (problem instanceof ApiError && problem.status === 429) { setCooldown(problem.retryAfterSeconds || 60); for (const queued of files.slice(cursor)) setFailures(old => [...old, { file: queued, message: 'Upload paused. Try again after the rate limit resets.' }]); cursor = files.length; } setFailures(old => [...old, { file, message: problem instanceof Error ? problem.message : 'Upload failed.' }]); } finally { setUploading(old => old.filter(item => item.file !== file)); }
     } }
-    try { await Promise.all(Array.from({ length: Math.min(3, files.length) }, worker)); }
-    finally { uploadLock.current = false; }
+    try { await worker(); }
+    finally { setUploading([]); uploadLock.current = false; }
   }
   function selectFiles(event: ChangeEvent<HTMLInputElement>) { if (event.target.files) void uploadFiles(Array.from(event.target.files)); event.target.value = ''; }
   function move(index: number, target: number) { onChange(arrayMove(photos, index, target)); }
@@ -43,10 +45,9 @@ export function PhotoStep({ photos, onChange, onBusyChange }: { photos: string[]
     {tab === 'url' && <div role="tabpanel" id="photo-url-panel" aria-labelledby="photo-url-tab" className={styles.urlRow}><label className={styles.field}>Add photo by URL<input type="url" placeholder="https://example.com/photo.jpg" value={url} onChange={event => setUrl(event.target.value)} /></label><button type="button" className="outline-button" disabled={busy || uploading.length > 0 || !url.trim() || photos.length >= 20} onClick={() => { latest.current = photos; void addUrl(); }}>{busy ? 'Checking…' : 'Add'}</button></div>}
     {error && <p role="alert" className="error-text">{error}</p>}
     {tab === 'upload' && <div role="tabpanel" id="photo-upload-panel" aria-labelledby="photo-upload-tab" className={styles.dropzone} onDragOver={event => event.preventDefault()} onDrop={event => { event.preventDefault(); void uploadFiles(Array.from(event.dataTransfer.files)); }}><Camera size={64} aria-hidden="true" /><h2>Drag your photos here</h2><p>Choose at least 5 photos for best results</p><button type="button" className="outline-button" disabled={busy || uploading.length > 0 || cooldown > 0 || photos.length >= 20} onClick={() => input.current?.click()}>Browse</button><span className="muted small">JPEG, PNG or WebP · Up to 8 MB each · 20 photos maximum</span><input ref={input} type="file" accept="image/jpeg,image/png,image/webp" multiple hidden onChange={selectFiles} /></div>}
-    {uploading.map((name, index) => <div key={`${name}-${index}`} role="status" className={styles.uploadStatus}><ImagePlus size={20} aria-hidden="true" />Uploading {name}<progress aria-label={`Uploading ${name}`} /></div>)}
     {failures.map((failure, index) => <div className={styles.uploadStatus} key={`${failure.file.name}-${index}`}><span className="error-text">{failure.file.name}: {failure.message}</span><button type="button" className="text-button" disabled={uploading.length > 0 || cooldown > 0} onClick={() => { setFailures(old => old.filter((_, item) => item !== index)); void uploadFiles([failure.file]); }}>Retry</button><button type="button" aria-label={`Dismiss failed upload ${failure.file.name}`} className="text-button" onClick={() => setFailures(old => old.filter((_, item) => item !== index))}>Dismiss</button></div>)}
     <p className="muted small">{photos.length} / 20 photos. Drag the handle to reorder, or use each photo’s menu.</p>
-    <DndContext sensors={sensors} collisionDetection={closestCenter} onDragEnd={dragEnd}><SortableContext items={photos} strategy={rectSortingStrategy}><div className={styles.photoGrid}>{photos.map((photo, index) => <SortablePhoto key={photo} photo={photo} index={index} total={photos.length} disabled={busy || uploading.length > 0} onMove={target => move(index, target)} onDelete={() => onChange(photos.filter((_, item) => item !== index))} />)}</div></SortableContext></DndContext>
+    <DndContext sensors={sensors} collisionDetection={closestCenter} onDragEnd={dragEnd}><SortableContext items={photos} strategy={rectSortingStrategy}><div className={styles.photoGrid}>{photos.map((photo, index) => <SortablePhoto key={photo} photo={photo} index={index} total={photos.length} disabled={busy || uploading.length > 0} onMove={target => move(index, target)} onDelete={() => onChange(photos.filter((_, item) => item !== index))} />)}{uploading.map(({ file, progress }, index) => <div key={`pending-${file.name}-${index}`} role="status" className={styles.photo}><div className={styles.uploadStatus} style={{ position: 'absolute', inset: 16, margin: 0, flexDirection: 'column', justifyContent: 'center', textAlign: 'center' }}><ImagePlus size={24} aria-hidden="true" /><strong>{progress.phase === 'processing' ? 'Processing…' : progress.phase === 'queued' ? 'Queued' : 'Uploading…'}</strong><span>{file.name}</span>{progress.phase === 'processing' && <span className="muted small">Retry {progress.retry} of 3 after {progress.waitSeconds} seconds</span>}{progress.phase !== 'queued' && <progress aria-label={`${progress.phase === 'processing' ? 'Processing' : 'Uploading'} ${file.name}`} />}</div></div>)}</div></SortableContext></DndContext>
   </div>;
 }
 function SortablePhoto({ photo, index, total, disabled, onMove, onDelete }: { photo: string; index: number; total: number; disabled: boolean; onMove: (target: number) => void; onDelete: () => void }) {

@@ -25,6 +25,8 @@ export function ProfileEditor() {
 function Editor({ user }: { user: UserPrivate }) {
   const { updateUser } = useAuth(), client = useQueryClient(), router = useRouter(), fileInput = useRef<HTMLInputElement>(null), cooldown = useProfileCooldown();
   const [draft, setDraft] = useState({ name: user.name, work: user.work ?? "", lives_in: user.lives_in ?? "", about: user.about ?? "", languages: user.languages ?? [] });
+  const avatarLock = useRef(false);
+  const [uploadPhase, setUploadPhase] = useState<"queued" | "uploading" | "processing">("uploading");
   const [editing, setEditing] = useState<ProfileField | null>(null);
   const [modalField, setModalField] = useState<ProfileField>("name");
   const [fieldSession, setFieldSession] = useState(0);
@@ -47,20 +49,20 @@ function Editor({ user }: { user: UserPrivate }) {
     finally { setPending(false); }
   }
   async function avatar(event: ChangeEvent<HTMLInputElement>) {
-    const file = event.target.files?.[0]; event.target.value = ""; if (!file || busy) return;
+    const file = event.target.files?.[0]; event.target.value = ""; if (!file || busy || avatarLock.current) return;
     if (!["image/jpeg", "image/png", "image/webp"].includes(file.type)) { setError("Use a JPEG, PNG or WebP photo"); return; }
     if (file.size > 8 * 1024 * 1024) { setError("That photo is too large (max 8 MB)"); return; }
-    setUploading(true); setError("");
-    try { const uploaded = await uploadPhoto(file); const updated = await updateProfile({ avatar_url: uploaded.url }); updateUser(updated); await client.invalidateQueries({ queryKey: queryKeys.profile(updated.id) }); toast.success("Profile photo updated"); }
+    avatarLock.current = true; setUploading(true); setUploadPhase("uploading"); setError("");
+    try { const uploaded = await uploadPhoto(file, { onProgress: progress => setUploadPhase(progress.phase) }); const updated = await updateProfile({ avatar_url: uploaded.url }); updateUser(updated); await client.invalidateQueries({ queryKey: queryKeys.profile(updated.id) }); toast.success("Profile photo updated"); }
     catch (reason) { cooldown.capture(reason); setError(reason instanceof Error ? reason.message : "Your photo couldn't be uploaded. Try again."); }
-    finally { setUploading(false); }
+    finally { setUploading(false); avatarLock.current = false; }
   }
   return <div className={styles.editorPage}>
     <Link href={`/users/${user.id}`} className={styles.back}><ChevronLeft size={18} />Profile</Link>
     <form onSubmit={save} className={styles.editor}>
       <aside className={styles.editAvatar}>
         <ProfileAvatar user={user} size={160} />
-        <button type="button" className={styles.avatarEdit} disabled={busy} onClick={() => fileInput.current?.click()}><Camera size={16} />{uploading ? "Uploading…" : "Edit"}</button>
+        <button type="button" className={styles.avatarEdit} disabled={busy} onClick={() => fileInput.current?.click()}><Camera size={16} />{uploading ? uploadPhase === "processing" ? "Processing…" : uploadPhase === "queued" ? "Queued…" : "Uploading…" : "Edit"}</button>
         <input ref={fileInput} type="file" accept="image/jpeg,image/png,image/webp" aria-label="Upload profile photo" hidden onChange={event => void avatar(event)} />
       </aside>
       <div className={styles.editorFields}>

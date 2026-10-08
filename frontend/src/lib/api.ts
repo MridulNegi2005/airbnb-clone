@@ -20,8 +20,10 @@ async function request<T>(path: string, { method = "GET", body, auth = false, si
     let message = typeof detail === "string" ? detail : `Request failed (${response.status})`;
     if (Array.isArray(detail)) { const first: unknown = detail[0]; if (first && typeof first === "object" && "msg" in first && typeof first.msg === "string") message = first.msg; }
     if (response.status === 401 && requestToken && getToken() === requestToken) { clearToken(); if (typeof window !== "undefined") window.dispatchEvent(new Event("auth-expired")); }
-    const retryAfterSeconds = response.status === 429 ? Math.max(1, Number(response.headers.get("Retry-After")) || 60) : 0;
-    if (retryAfterSeconds) {
+    const retryHeader = response.headers.get("Retry-After");
+    const retrySeconds = retryHeader !== null && retryHeader.trim() !== "" && Number.isFinite(Number(retryHeader)) ? Math.max(0, Number(retryHeader)) : retryHeader && Number.isFinite(Date.parse(retryHeader)) ? Math.max(0, Math.ceil((Date.parse(retryHeader) - Date.now()) / 1000)) : null;
+    const retryAfterSeconds = response.status === 429 ? Math.max(1, retrySeconds ?? 60) : response.status === 503 ? retrySeconds ?? 1 : 0;
+    if (response.status === 429) {
       message = `You're doing that too often. Try again in ${Math.ceil(retryAfterSeconds / 60)} minutes.`;
       if (typeof window !== "undefined") window.dispatchEvent(new CustomEvent("api-rate-limit", { detail: { seconds: retryAfterSeconds, message } }));
     }
@@ -71,7 +73,39 @@ export const getHostBookings = (listingId?: number, signal?: AbortSignal) => req
 export const createListing = (body: Api.ListingInput) => request<Api.ListingDetail>("/listings", { method: "POST", body, auth: true });
 export const updateListing = (id: number, body: Api.ListingInput) => request<Api.ListingDetail>(`/listings/${id}`, { method: "PUT", body, auth: true });
 export const deleteListing = (id: number) => request<void>(`/listings/${id}`, { method: "DELETE", auth: true });
-export const uploadPhoto = (file: File) => { const form = new FormData(); form.append("file", file); return request<Api.Upload>("/uploads", { method: "POST", body: form, auth: true }); };
+export type UploadProgress = { phase: "queued" | "uploading" | "processing"; retry: number; waitSeconds: number };
+export type UploadOptions = { onProgress?: (progress: UploadProgress) => void; signal?: AbortSignal };
+let uploadQueue: Promise<void> = Promise.resolve();
+function waitForUploadRetry(seconds: number, signal?: AbortSignal): Promise<void> {
+  return new Promise((resolve, reject) => {
+    if (signal?.aborted) { reject(signal.reason); return; }
+    const finish = () => { signal?.removeEventListener("abort", abort); resolve(); };
+    const timer = setTimeout(finish, seconds * 1000);
+    const abort = () => { clearTimeout(timer); signal?.removeEventListener("abort", abort); reject(signal?.reason); };
+    signal?.addEventListener("abort", abort, { once: true });
+  });
+}
+/** Serialise photo processing within this app and retry only busy-upload responses. */
+export function uploadPhoto(file: File, { onProgress, signal }: UploadOptions = {}): Promise<Api.Upload> {
+  const uploadToken = getToken();
+  onProgress?.({ phase: "queued", retry: 0, waitSeconds: 0 });
+  const operation = uploadQueue.then(async () => {
+    for (let retry = 0; ; retry++) {
+      signal?.throwIfAborted();
+      if (getToken() !== uploadToken) throw new ApiError(401, "Your session changed. Try uploading again.");
+      onProgress?.({ phase: "uploading", retry, waitSeconds: 0 });
+      const form = new FormData(); form.append("file", file);
+      try { return await request<Api.Upload>("/uploads", { method: "POST", body: form, auth: true, signal }); }
+      catch (error) {
+        if (!(error instanceof ApiError) || error.status !== 503 || retry >= 3) throw error;
+        onProgress?.({ phase: "processing", retry: retry + 1, waitSeconds: error.retryAfterSeconds });
+        await waitForUploadRetry(error.retryAfterSeconds, signal);
+      }
+    }
+  });
+  uploadQueue = operation.then(() => undefined, () => undefined);
+  return operation;
+}
 export const login = (body: { email: string; password: string }) => request<Api.AuthResponse>("/auth/login", { method: "POST", body });
 export const register = (body: { name: string; email: string; password: string }) => request<Api.AuthResponse>("/auth/register", { method: "POST", body });
 export const googleLogin = (body: { credential: string }) => request<Api.AuthResponse>("/auth/google", { method: "POST", body });
