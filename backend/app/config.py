@@ -1,5 +1,6 @@
 from functools import lru_cache
 
+from pydantic import Field
 from pydantic_settings import BaseSettings, SettingsConfigDict
 
 
@@ -7,7 +8,7 @@ class Settings(BaseSettings):
     model_config = SettingsConfigDict(env_file=".env", extra="ignore")
 
     database_url: str = "sqlite:///./airbnb.db"
-    secret_key: str
+    secret_key: str = Field(min_length=32)
     access_token_ttl_minutes: int = 60 * 24 * 7
     cors_origins: list[str] = ["http://localhost:3000"]
     upload_dir: str = "uploads"
