@@ -36,7 +36,9 @@ export function CheckoutClient({ id }: { id: number }) {
   const prompted = useRef(false);
   const confirmationPending = useRef(false);
   const [datesOpen, setDatesOpen] = useState(false);
+  const [datesSession, setDatesSession] = useState(0);
   const [guestsOpen, setGuestsOpen] = useState(false);
+  const [guestsSession, setGuestsSession] = useState(0);
   const [comingSoon, setComingSoon] = useState<string | null>(null);
   const [messageOpen, setMessageOpen] = useState(false);
   const [policyOpen, setPolicyOpen] = useState(false);
@@ -59,6 +61,8 @@ export function CheckoutClient({ id }: { id: number }) {
   const stay = { check_in: checkIn, check_out: checkOut, guests: guests.adults + guests.children };
   const dateError = validateStay(checkIn, checkOut, availability.data, listing.data);
   const quote = useQuery({ queryKey: queryKeys.quote(id, stay), queryFn: ({ signal }) => getQuote(id, stay, signal), enabled: validId && Boolean(listing.data) && availability.isSuccess && !dateError });
+  function openDates() { setDatesSession(value => value + 1); setDatesOpen(true); }
+  function openGuests() { setGuestsSession(value => value + 1); setGuestsOpen(true); }
   function updateTrip(values: Record<string, string>) {
     const next = new URLSearchParams(params);
     Object.entries(values).forEach(([key, value]) => next.set(key, value));
@@ -89,7 +93,7 @@ export function CheckoutClient({ id }: { id: number }) {
       if (error instanceof ApiError && error.status === 409) {
         toast.error("Those dates are no longer available");
         void availability.refetch();
-        setDatesOpen(true);
+        openDates();
       } else if (error instanceof ApiError) setSubmitError(error.message);
       else { toast.error("Something went wrong. Please try again."); setSubmitError("We could not confirm your booking. Your form is still here; please try again."); }
     },
@@ -103,9 +107,9 @@ export function CheckoutClient({ id }: { id: number }) {
   const disabled = cooldown.blocked || status !== "authenticated" || Boolean(dateError) || !availability.isSuccess || quote.isFetching || !quote.data?.available || Boolean(quoteError) || user?.id === property.host.id;
   const tripDetails = <section className={styles.tripDetails}>
           <h2 className={styles.srOnly}>Your trip</h2>
-          <div className={styles.tripRow}><div><h3>Dates</h3><p>{dateRange(checkIn, checkOut) ? formatDateRange(checkIn, checkOut) : "Add your travel dates"}</p></div><button type="button" className={styles.changeButton} aria-label="Edit dates" disabled={booking.isPending} onClick={() => setDatesOpen(true)}>Change</button></div>
-          <div className={styles.tripRow}><div><h3>Guests</h3><p>{formatGuests(guests)}</p></div><button type="button" className={styles.changeButton} aria-label="Edit guests" disabled={booking.isPending} onClick={() => setGuestsOpen(true)}>Change</button></div>
-          {dateError && <p className={styles.error} role="alert">{dateError} <button type="button" className={styles.textButton} onClick={() => setDatesOpen(true)}>Change dates</button></p>}
+          <div className={styles.tripRow}><div><h3>Dates</h3><p>{dateRange(checkIn, checkOut) ? formatDateRange(checkIn, checkOut) : "Add your travel dates"}</p></div><button type="button" className={styles.changeButton} aria-label="Edit dates" disabled={booking.isPending} onClick={openDates}>Change</button></div>
+          <div className={styles.tripRow}><div><h3>Guests</h3><p>{formatGuests(guests)}</p></div><button type="button" className={styles.changeButton} aria-label="Edit guests" disabled={booking.isPending} onClick={openGuests}>Change</button></div>
+          {dateError && <p className={styles.error} role="alert">{dateError} <button type="button" className={styles.textButton} onClick={openDates}>Change dates</button></p>}
           {availability.isError && <p className={styles.error} role="alert">We could not load availability. <button type="button" className={styles.textButton} onClick={() => void availability.refetch()}>Try again</button></p>}
           {availability.isPending && <p className={styles.secondary} aria-live="polite">Checking availability...</p>}
         </section>;
@@ -121,8 +125,8 @@ export function CheckoutClient({ id }: { id: number }) {
       </div>
       <CheckoutSummaryCard listing={property} quote={!dateError ? quote.data : undefined} loading={quote.isFetching} error={quoteError} onRetry={() => void quote.refetch()} onPolicy={() => setPolicyOpen(true)}>{tripDetails}</CheckoutSummaryCard>
     </div>
-    {datesOpen && <EditDatesModal initial={dateRange(checkIn, checkOut)} minNights={property.min_nights} maxNights={property.max_nights} bookedRanges={availability.data ?? []} ready={availability.isSuccess && !availability.isFetching} failed={availability.isError} onRetry={() => void availability.refetch()} onClose={() => setDatesOpen(false)} onSave={range => { if (range.from && range.to && availability.isSuccess) { updateTrip({ checkin: toDateString(range.from), checkout: toDateString(range.to) }); setDatesOpen(false); } }} />}
-    {guestsOpen && <EditGuestsModal initial={guests} max={maxGuests} onClose={() => setGuestsOpen(false)} onSave={value => { updateTrip(Object.fromEntries(Object.entries(value).map(([key, count]) => [key, String(count)]))); setGuestsOpen(false); }} />}
+    {datesSession > 0 && <EditDatesModal key={datesSession} open={datesOpen} initial={dateRange(checkIn, checkOut)} minNights={property.min_nights} maxNights={property.max_nights} bookedRanges={availability.data ?? []} ready={availability.isSuccess && !availability.isFetching} failed={availability.isError} onRetry={() => void availability.refetch()} onClose={() => setDatesOpen(false)} onSave={range => { if (range.from && range.to && availability.isSuccess) { updateTrip({ checkin: toDateString(range.from), checkout: toDateString(range.to) }); setDatesOpen(false); } }} />}
+    {guestsSession > 0 && <EditGuestsModal key={guestsSession} open={guestsOpen} initial={guests} max={maxGuests} onClose={() => setGuestsOpen(false)} onSave={value => { updateTrip(Object.fromEntries(Object.entries(value).map(([key, count]) => [key, String(count)]))); setGuestsOpen(false); }} />}
     <Modal open={comingSoon !== null} onClose={() => setComingSoon(null)} title={comingSoon ?? "Coming soon"}><h2>Coming soon</h2><p>This demo does not support {comingSoon?.toLowerCase()} yet. You can still complete your demo reservation.</p></Modal>
     {messageOpen && <ComposeMessageModal open listingId={id} hostName={property.host.name} onClose={() => setMessageOpen(false)} />}
     <Modal open={policyOpen} onClose={() => setPolicyOpen(false)} title="Cancellation policy"><p>{cancellationPolicy}</p></Modal>

@@ -2,14 +2,13 @@ import { AppImage as Image } from "@/components/ui/app-image";
 import Link from "next/link";
 import { ImageOff, MapPin } from "lucide-react";
 import { formatTripDateRange } from "@/lib/format";
-import type { Booking } from "@/types/api";
+import type { Booking, UserPublic } from "@/types/api";
 import styles from "./trips.module.css";
 
-export function TripCard({ booking, highlight, selected, today, onOpen }: {
+export function TripCard({ booking, highlight, selected, today, onOpen, guest }: {
   booking: Booking; highlight: boolean; selected: boolean; today: string;
-  onOpen: (booking: Booking) => void;
+  onOpen: (booking: Booking) => void; guest?: Pick<UserPublic, "name" | "avatar_url"> | null;
 }) {
-  const host = booking.listing.host;
   const cancelled = booking.status === "cancelled";
   const upcoming = !cancelled && booking.check_out > today;
   const status = cancelled ? "Cancelled" : booking.check_in <= today ? "In progress" : "Upcoming";
@@ -22,8 +21,8 @@ export function TripCard({ booking, highlight, selected, today, onOpen }: {
         <span className={styles.city}>{booking.listing.city}</span>
         <span className={styles.dates}>{formatTripDateRange(booking.check_in, booking.check_out)}</span>
         <span className={styles.hostRow}>
-          {host.avatar_url && <span className={styles.hostAvatar}><Image src={host.avatar_url} alt="" fill sizes="24px" /></span>}
-          <span>Hosted by {host.name}</span>
+          {guest && <span className={styles.hostAvatar}>{guest.avatar_url ? <Image src={guest.avatar_url} alt={guest.name} fill sizes="24px" /> : <span className={styles.guestInitial}>{guest.name[0]}</span>}</span>}
+          {booking.guests > 1 && <span className={styles.guestCount} aria-label={`${booking.guests - 1} other ${booking.guests === 2 ? "guest" : "guests"}`}>+{booking.guests - 1}</span>}
           {(cancelled || upcoming) && <span className={styles.status}>{status}</span>}
         </span>
       </span>

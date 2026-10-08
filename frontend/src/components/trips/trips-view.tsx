@@ -3,7 +3,7 @@
 import { useEffect, useRef, useState } from "react";
 import Link from "next/link";
 import { Check, ChevronDown } from "lucide-react";
-import { useSearchParams } from "next/navigation";
+import { useRouter, useSearchParams } from "next/navigation";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { toast } from "sonner";
 import { useAuth } from "@/providers/auth-provider";
@@ -16,6 +16,8 @@ import { toDateString } from "@/lib/dates";
 import { formatDateRange,formatPrice } from "@/lib/format";
 import type { Booking } from "@/types/api";
 import { EmptyTrips, TripCard } from "./trip-card";
+import { TripsPanel } from "./trips-panel";
+import { TripDetailPanel } from "./trip-detail-panel";
 import { ReviewModal } from "./review-modal";
 import styles from "./trips.module.css";
 
@@ -27,14 +29,16 @@ export function TripsSkeleton() {
 }
 
 export function TripsView() {
-  const { status, openAuth } = useAuth();
+  const { user, status, openAuth } = useAuth();
   const client = useQueryClient();
   const search = useSearchParams();
+  const router = useRouter();
+  const sidebar = useRef<HTMLDivElement>(null);
+  const lastOpened = useRef<number | null>(null);
   const [showCancelled, setShowCancelled] = useState(false);
-  const [selectedId, setSelectedId] = useState<number | null>(null);
   const [cancel, setCancel] = useState<Booking | null>(null);
   const [review, setReview] = useState<Booking | null>(null);
-  const [detailId, setDetailId] = useState<number | null>(null);
+  const detailId = Number(search.get("trip")) || null;
   const [compose, setCompose] = useState<Booking | null>(null);
   const cooldown = useApiCooldown();
   const reviewCooldown = useApiCooldown();
@@ -53,6 +57,12 @@ export function TripsView() {
   useEffect(() => {
     if (status === "anonymous" && !prompted.current) { prompted.current = true; openAuth(); }
   }, [status, openAuth]);
+
+  useEffect(() => {
+    if (!query.isSuccess) return;
+    if (detailId) sidebar.current?.querySelector<HTMLHeadingElement>("h1")?.focus({ preventScroll: true });
+    else if (lastOpened.current) sidebar.current?.querySelector<HTMLButtonElement>(`#trip-${lastOpened.current} button`)?.focus({ preventScroll: true });
+  }, [detailId, query.isSuccess]);
 
   const cancellation = useMutation({
     retry: false,
@@ -90,9 +100,22 @@ export function TripsView() {
   });
 
   function openTrip(booking: Booking) {
-    setSelectedId(booking.id);
-    setDetailId(booking.id);
-    setDetailOpen(true);
+    lastOpened.current = booking.id;
+    setDetailOpen(false);
+    const next = new URLSearchParams(search);
+    next.set("trip", String(booking.id));
+    router.push(`/trips?${next}`, { scroll: false });
+  }
+  function closeTrip() {
+    const next = new URLSearchParams(search);
+    next.delete("trip");
+    router.replace(`/trips${next.size ? `?${next}` : ""}`, { scroll: false });
+  }
+  async function shareListing(booking: Booking) {
+    try {
+      await navigator.clipboard.writeText(`${window.location.origin}/rooms/${booking.listing.id}`);
+      toast.success("Link copied");
+    } catch { toast.error("We could not copy the link. Please try again."); }
   }
   function openCancellation(booking: Booking) {
     if (cancellationPending.current || booking.status !== "confirmed" || booking.check_in <= today) return;
@@ -114,17 +137,20 @@ export function TripsView() {
   const confirmed = (query.data ?? []).filter(booking => booking.status === "confirmed");
   const cancelled = (query.data ?? []).filter(booking => booking.status === "cancelled");
   const visible = showCancelled ? cancelled : confirmed;
+  const mappedTrips = detail && !visible.some(trip => trip.id === detail.id) ? [...visible, detail] : visible;
   return <section className={styles.page}>
-    <div className={styles.sidebar}>
-      <h1>Trips</h1>
+    <TripsPanel panelRef={sidebar}>
+      {detail ? <TripDetailPanel booking={detail} onBack={closeTrip} onReservation={() => setDetailOpen(true)} onShare={() => { void shareListing(detail); }} /> : <>
+      <h1 tabIndex={-1}>Trips</h1>
       {query.isError ? <div className={styles.empty} role="alert"><h2>We couldn&apos;t load your trips</h2><p>{query.error.message}</p><button type="button" className="outline-button" onClick={() => { void query.refetch(); }} disabled={query.isFetching}>{query.isFetching ? "Trying again..." : "Try again"}</button></div>
         : <>
-          <div id="trips-list" className={styles.tripList}>{visible.length ? visible.map(booking => <TripCard key={booking.id} booking={booking} selected={selectedId === booking.id} highlight={booking.id === highlight} today={today} onOpen={openTrip} />) : <EmptyTrips cancelled={showCancelled} />}</div>
+          <div id="trips-list" className={styles.tripList}>{visible.length ? visible.map(booking => <TripCard key={booking.id} booking={booking} guest={user} selected={detailId === booking.id} highlight={booking.id === highlight} today={today} onOpen={openTrip} />) : <EmptyTrips cancelled={showCancelled} />}</div>
           <button type="button" className={styles.cancelledToggle} aria-expanded={showCancelled} aria-controls="trips-list" onClick={() => setShowCancelled(value => !value)}>Cancelled reservations<ChevronDown size={16} aria-hidden="true" /></button>
           <p className={styles.help}>Can&apos;t find your reservation here? <Link href="/coming-soon">Visit the Help Centre</Link></p>
         </>}
-    </div>
-    <div className={styles.mapPane}><TripsMap bookings={visible} selectedId={selectedId} onSelect={openTrip} /></div>
+      </>}
+    </TripsPanel>
+    <div className={styles.mapPane}><TripsMap bookings={mappedTrips} selectedId={detailId} onSelect={openTrip} /></div>
     {cancel && <Modal open={cancelOpen} title="Cancel your trip?" onClose={() => { if (!cancellationPending.current) setCancelOpen(false); }} footer={<div className={styles.confirmActions}><button type="button" className="outline-button" disabled={cancellation.isPending} onClick={() => { if (!cancellationPending.current) setCancelOpen(false); }}>Keep trip</button><button type="button" className={styles.dangerButton} disabled={cancellation.isPending||cooldown.blocked} onClick={() => { if (cancelOpen && !cancellationPending.current && !cooldown.blocked && cancel.status === "confirmed" && cancel.check_in > today) { cancellationPending.current = true; cancellation.mutate(cancel); } }}>{cancellation.isPending ? "Cancelling..." : "Cancel trip"}</button></div>}>
       <div className={styles.cancelBody}><h3>{cancel.listing.title}</h3><p>{formatDateRange(cancel.check_in, cancel.check_out)}</p><p>This cannot be undone.</p>{cancelError && <p className="error-text" role="alert">{cancelError}</p>}</div>
     </Modal>}
