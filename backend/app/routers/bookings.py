@@ -1,6 +1,6 @@
 from fastapi import APIRouter, status
 
-from app.deps import CurrentUser, DbSession
+from app.deps import CurrentUser, DbSession, PathId
 from app.models import Booking, Review
 from app.schemas.booking import BookingCreate, BookingOut, ReviewCreate, ReviewOut
 from app.services.bookings import (
@@ -25,15 +25,15 @@ def read_trips(user: CurrentUser, db: DbSession) -> list[Booking]:
 
 
 @router.get("/{booking_id}", response_model=BookingOut)
-def read_booking(booking_id: int, user: CurrentUser, db: DbSession) -> Booking:
+def read_booking(booking_id: PathId, user: CurrentUser, db: DbSession) -> Booking:
     return get_booking(db, booking_id, user)
 
 
 @router.post("/{booking_id}/cancel", response_model=BookingOut)
-def cancel(booking_id: int, user: CurrentUser, db: DbSession) -> Booking:
+def cancel(booking_id: PathId, user: CurrentUser, db: DbSession) -> Booking:
     return cancel_booking(db, booking_id, user)
 
 
 @router.post("/{booking_id}/review", response_model=ReviewOut, status_code=status.HTTP_201_CREATED)
-def review(booking_id: int, payload: ReviewCreate, user: CurrentUser, db: DbSession) -> Review:
+def review(booking_id: PathId, payload: ReviewCreate, user: CurrentUser, db: DbSession) -> Review:
     return review_booking(db, booking_id, user, payload)

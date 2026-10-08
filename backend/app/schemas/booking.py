@@ -3,13 +3,13 @@ from datetime import date, datetime
 from pydantic import Field
 
 from app.models import BookingStatus, PropertyType, RoomType
-from app.schemas.common import ORMModel
+from app.schemas.common import Id, ORMModel
 from app.schemas.listing import StayParams
 from app.schemas.user import UserPublic
 
 
 class BookingCreate(StayParams):
-    listing_id: int
+    listing_id: Id
 
 
 class BookingListing(ORMModel):

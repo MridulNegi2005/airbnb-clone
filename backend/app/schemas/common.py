@@ -1,6 +1,10 @@
-from typing import Any, Self
+from typing import Annotated, Any, Self
 
 from pydantic import BaseModel, ConfigDict, Field
+
+MAX_ID = 2**31 - 1
+
+Id = Annotated[int, Field(ge=1, le=MAX_ID)]
 
 
 class ORMModel(BaseModel):
@@ -8,7 +12,7 @@ class ORMModel(BaseModel):
 
 
 class PageParams(BaseModel):
-    page: int = Field(default=1, ge=1)
+    page: int = Field(default=1, ge=1, le=10_000)
     page_size: int = Field(default=20, ge=1, le=50)
 
     @property

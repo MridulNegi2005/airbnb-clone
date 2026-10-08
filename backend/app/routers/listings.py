@@ -3,7 +3,7 @@ from typing import Annotated
 
 from fastapi import APIRouter, HTTPException, Query, status
 
-from app.deps import CurrentUser, DbSession
+from app.deps import CurrentUser, DbSession, PathId
 from app.models import Listing
 from app.schemas.common import Page, PageParams
 from app.schemas.listing import (
@@ -35,25 +35,27 @@ def search(filters: Annotated[ListingFilters, Query()], db: DbSession) -> Page[L
 
 
 @router.get("/{listing_id}", response_model=ListingDetail)
-def read_listing(listing_id: int, db: DbSession) -> Listing:
+def read_listing(listing_id: PathId, db: DbSession) -> Listing:
     return get_listing(db, listing_id)
 
 
 @router.get("/{listing_id}/booked-dates", response_model=list[BookedRange])
-def read_booked_dates(listing_id: int, db: DbSession) -> list[BookedRange]:
+def read_booked_dates(listing_id: PathId, db: DbSession) -> list[BookedRange]:
     get_listing(db, listing_id)
     ranges = booked_ranges(db, listing_id, from_date=date.today())
     return [BookedRange.model_validate(booking) for booking in ranges]
 
 
 @router.get("/{listing_id}/quote", response_model=PriceQuote)
-def read_quote(listing_id: int, stay: Annotated[StayParams, Query()], db: DbSession) -> PriceQuote:
+def read_quote(
+    listing_id: PathId, stay: Annotated[StayParams, Query()], db: DbSession
+) -> PriceQuote:
     return quote_stay(db, get_listing(db, listing_id), stay)
 
 
 @router.get("/{listing_id}/reviews", response_model=ReviewPage)
 def read_reviews(
-    listing_id: int, params: Annotated[PageParams, Query()], db: DbSession
+    listing_id: PathId, params: Annotated[PageParams, Query()], db: DbSession
 ) -> ReviewPage:
     return list_reviews(db, listing_id, params)
 
@@ -69,7 +71,7 @@ def create_listing(payload: ListingWrite, user: CurrentUser, db: DbSession) -> L
 
 @router.put("/{listing_id}", response_model=ListingDetail)
 def update_listing(
-    listing_id: int, payload: ListingWrite, user: CurrentUser, db: DbSession
+    listing_id: PathId, payload: ListingWrite, user: CurrentUser, db: DbSession
 ) -> Listing:
     listing = get_owned_listing(db, listing_id, user)
     apply_listing_write(db, listing, payload)
@@ -78,7 +80,7 @@ def update_listing(
 
 
 @router.delete("/{listing_id}", status_code=status.HTTP_204_NO_CONTENT)
-def delete_listing(listing_id: int, user: CurrentUser, db: DbSession) -> None:
+def delete_listing(listing_id: PathId, user: CurrentUser, db: DbSession) -> None:
     listing = get_owned_listing(db, listing_id, user)
     if has_upcoming_bookings(db, listing_id):
         raise HTTPException(

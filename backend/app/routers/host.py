@@ -1,8 +1,11 @@
-from fastapi import APIRouter
+from typing import Annotated
+
+from fastapi import APIRouter, Query
 
 from app.deps import CurrentUser, DbSession
 from app.models import Booking, Listing
 from app.schemas.booking import HostBookingOut
+from app.schemas.common import MAX_ID
 from app.schemas.listing import HostListing, ListingCard
 from app.services.bookings import list_host_bookings, upcoming_booking_counts
 from app.services.listings import card_query
@@ -27,6 +30,8 @@ def read_host_listings(user: CurrentUser, db: DbSession) -> list[HostListing]:
 
 @router.get("/bookings", response_model=list[HostBookingOut])
 def read_host_bookings(
-    user: CurrentUser, db: DbSession, listing_id: int | None = None
+    user: CurrentUser,
+    db: DbSession,
+    listing_id: Annotated[int | None, Query(ge=1, le=MAX_ID)] = None,
 ) -> list[Booking]:
     return list_host_bookings(db, user, listing_id)

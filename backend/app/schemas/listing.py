@@ -4,7 +4,7 @@ from typing import Annotated, Self
 from pydantic import BaseModel, Field, HttpUrl, StringConstraints, model_validator
 
 from app.models import PropertyType, RoomType
-from app.schemas.common import ORMModel, PageParams
+from app.schemas.common import Id, ORMModel, PageParams
 from app.schemas.user import UserPublic
 
 MAX_NIGHTS = 365
@@ -75,8 +75,8 @@ class ListingWrite(BaseModel):
     beds: int = Field(ge=1, le=50)
     bathrooms: float = Field(ge=0, le=50, multiple_of=0.5)
     image_urls: list[HttpUrl] = Field(min_length=1, max_length=20)
-    amenity_ids: list[int] = Field(default_factory=list, max_length=100)
-    category_ids: list[int] = Field(default_factory=list, max_length=20)
+    amenity_ids: list[Id] = Field(default_factory=list, max_length=100)
+    category_ids: list[Id] = Field(default_factory=list, max_length=20)
 
 
 class StayParams(BaseModel):
@@ -100,15 +100,15 @@ class ListingFilters(PageParams):
     check_in: date | None = None
     check_out: date | None = None
     guests: int | None = Field(default=None, ge=1, le=16)
-    min_price: int | None = Field(default=None, ge=0)
-    max_price: int | None = Field(default=None, ge=0)
+    min_price: int | None = Field(default=None, ge=0, le=100_000)
+    max_price: int | None = Field(default=None, ge=0, le=100_000)
     property_type: list[PropertyType] = Field(default_factory=list)
     room_type: RoomType | None = None
-    amenity: list[int] = Field(default_factory=list, max_length=50)
+    amenity: list[Id] = Field(default_factory=list, max_length=50)
     category: str | None = Field(default=None, max_length=40)
-    min_bedrooms: int | None = Field(default=None, ge=0)
-    min_beds: int | None = Field(default=None, ge=0)
-    min_bathrooms: float | None = Field(default=None, ge=0)
+    min_bedrooms: int | None = Field(default=None, ge=0, le=50)
+    min_beds: int | None = Field(default=None, ge=0, le=50)
+    min_bathrooms: float | None = Field(default=None, ge=0, le=50)
 
     @model_validator(mode="after")
     def check_ranges(self) -> Self:

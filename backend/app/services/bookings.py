@@ -3,6 +3,7 @@ from datetime import date
 
 from fastapi import HTTPException, status
 from sqlalchemy import Select, func, select
+from sqlalchemy.exc import IntegrityError
 from sqlalchemy.orm import Session, joinedload, selectinload
 
 from app.config import get_settings
@@ -140,7 +141,13 @@ def review_booking(db: Session, booking_id: int, guest: User, payload: ReviewCre
         raise HTTPException(status.HTTP_409_CONFLICT, detail="You already reviewed this stay")
     review = Review(booking=booking, **payload.model_dump())
     db.add(review)
-    db.commit()
+    try:
+        db.commit()
+    except IntegrityError:
+        db.rollback()
+        raise HTTPException(
+            status.HTTP_409_CONFLICT, detail="You already reviewed this stay"
+        ) from None
     return review
 
 

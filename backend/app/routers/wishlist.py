@@ -1,6 +1,7 @@
 from fastapi import APIRouter, status
+from sqlalchemy.exc import IntegrityError
 
-from app.deps import CurrentUser, DbSession
+from app.deps import CurrentUser, DbSession, PathId
 from app.models import Listing, WishlistItem
 from app.schemas.listing import ListingCard
 from app.services.listings import card_query, get_listing
@@ -20,15 +21,19 @@ def read_wishlist(user: CurrentUser, db: DbSession) -> list[Listing]:
 
 
 @router.put("/{listing_id}", status_code=status.HTTP_204_NO_CONTENT)
-def save(listing_id: int, user: CurrentUser, db: DbSession) -> None:
+def save(listing_id: PathId, user: CurrentUser, db: DbSession) -> None:
     get_listing(db, listing_id)
     if db.get(WishlistItem, (user.id, listing_id)) is None:
         db.add(WishlistItem(user_id=user.id, listing_id=listing_id))
-        db.commit()
+        try:
+            db.commit()
+        except IntegrityError:
+            # A concurrent request saved it first; the end state is the same.
+            db.rollback()
 
 
 @router.delete("/{listing_id}", status_code=status.HTTP_204_NO_CONTENT)
-def unsave(listing_id: int, user: CurrentUser, db: DbSession) -> None:
+def unsave(listing_id: PathId, user: CurrentUser, db: DbSession) -> None:
     item = db.get(WishlistItem, (user.id, listing_id))
     if item is not None:
         db.delete(item)
