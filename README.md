@@ -115,6 +115,7 @@ Error responses use the format `{"detail": "..."}`. The API uses `409 Conflict` 
 - Only the guest can cancel a booking, and only before the check-in day.
 - A guest can review a stay on the check-out day or later.
 - Uploaded photos go to the local `uploads/` folder. On a host with temporary storage, use photo URLs instead.
+- The API accepts 20 login and sign-up attempts for each client in 5 minutes. The counter is in process memory, so it is correct for one server process.
 - The seed uses free photos from Unsplash and avatars from pravatar.cc.
 
 ## Tests
@@ -141,6 +142,12 @@ pytest
 The API runs at `http://localhost:8000`, and the documentation is at `http://localhost:8000/docs`.
 
 To delete all data and seed again, run `python -m app.seed --reset`.
+
+### Deployment notes
+
+- Set `CORS_ORIGINS` to the URL of the deployed frontend.
+- Run one server process. The login rate limit is in process memory.
+- Behind a reverse proxy, start the server with `--proxy-headers`. Set `FORWARDED_ALLOW_IPS` to the address of the proxy. Do not set it to `*`, because then a client can choose its own address and avoid the rate limit.
 
 ### Demo accounts
 
