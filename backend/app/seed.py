@@ -1,48 +1,54 @@
 import argparse
 import random
 from datetime import UTC, date, datetime, time, timedelta
+from pathlib import Path
 
+from alembic import command
+from alembic.config import Config
 from sqlalchemy import select
 from sqlalchemy.orm import Session
 
 from app.config import get_settings
-from app.database import Base, SessionLocal, engine
+from app.database import SessionLocal
 from app.models import (
     Amenity,
     Booking,
     BookingStatus,
     Category,
+    Conversation,
+    GuestReview,
     Listing,
     ListingImage,
-    Review,
+    ListingReview,
+    Message,
     RoomType,
     User,
+    Wishlist,
     WishlistItem,
-    create_tables,
 )
 from app.security import hash_password
+from app.seed_content import CATEGORIES, GUESTS, HOSTS, LISTINGS, ListingSeed, PersonSeed
 from app.seed_data import (
     AMENITIES,
     BASE_AMENITIES,
-    CATEGORIES,
-    DEMO_GUEST_EMAIL,
-    GUESTS,
-    HOSTS,
-    LISTINGS,
+    GUEST_REVIEW_COMMENTS,
     PHOTOS,
     REVIEW_COMMENTS,
     UNSPLASH,
-    ListingSeed,
-    PersonSeed,
 )
 from app.services.bookings import price_stay
 
-# Listing indexes where the demo guest gets a specific trip, so every Trips state is visible.
-DEMO_UPCOMING = {0, 11, 21}
+ALEMBIC_INI = Path(__file__).resolve().parent.parent / "alembic.ini"
+
+# Listing indexes where the demo guest (GUESTS[0]) gets a specific trip, so every state shows.
+DEMO_UPCOMING = {0, 4, 20}
 DEMO_CANCELLED = {8}
 DEMO_AWAITING_REVIEW = {3}
-DEMO_REVIEWED = {5, 12, 19, 26}
-DEMO_WISHLIST = (1, 8, 13, 21, 29)
+DEMO_REVIEWED = {5, 12, 22, 27}
+DEMO_WISHLISTS = {
+    "Weekend getaways": (18, 20, 24, 27, 30),
+    "Bengaluru stays": (1, 6, 13),
+}
 
 _ROOM_DETAILS = {
     RoomType.ENTIRE_HOME: "You will have the whole place to yourself.",
@@ -58,7 +64,11 @@ def _user(person: PersonSeed, password_hash: str, joined: datetime) -> User:
         password_hash=password_hash,
         avatar_url=f"https://i.pravatar.cc/300?img={person.avatar}",
         about=person.about,
+        work=person.work,
+        languages=list(person.languages),
+        lives_in=person.lives_in,
         is_superhost=person.is_superhost,
+        identity_verified_at=joined if person.identity_verified else None,
         created_at=joined,
     )
 
@@ -84,8 +94,8 @@ def _description(seed: ListingSeed) -> str:
         f"{seed.summary}\n\n"
         f"The space\n{_ROOM_DETAILS[seed.room_type]} The home sleeps up to {seed.guests} "
         f"guests and has fast wifi and fresh linens.\n\n"
-        f"Getting around\nThe neighbourhood is easy to explore on foot, and your host can "
-        f"arrange airport transfers in {seed.city}."
+        f"Getting around\n{seed.neighbourhood} is easy to explore, and your host can help "
+        f"arrange a cab from Kempegowda International Airport."
     )
 
 
@@ -103,8 +113,9 @@ def _listing(
         property_type=seed.property_type,
         room_type=seed.room_type,
         address=seed.address,
+        neighbourhood=seed.neighbourhood,
         city=seed.city,
-        country=seed.country,
+        country="India",
         latitude=seed.latitude,
         longitude=seed.longitude,
         price_per_night=seed.price,
@@ -117,7 +128,7 @@ def _listing(
             ListingImage(url=url, position=position)
             for position, url in enumerate(_photo_urls(seed, index))
         ],
-        amenities=[amenities[name] for name in {*BASE_AMENITIES, *seed.amenities}],
+        amenities=[amenities[name] for name in sorted({*BASE_AMENITIES, *seed.amenities})],
         categories=[categories[slug] for slug in seed.categories],
     )
 
@@ -137,14 +148,17 @@ def _booking(listing: Listing, guest: User, check_in: date, nights: int, guests:
     )
 
 
-def _review(rng: random.Random, check_out: date) -> Review:
+def _written_after(rng: random.Random, check_out: date) -> datetime:
+    return datetime.combine(check_out + timedelta(days=rng.randint(1, 5)), time(10), UTC)
+
+
+def _listing_review(rng: random.Random, check_out: date) -> ListingReview:
     overall = rng.choices([5, 4, 3], weights=[82, 15, 3])[0]
 
     def near_overall() -> int:
         return max(1, min(5, overall + rng.choice([0, 0, 0, 0, -1])))
 
-    written = datetime.combine(check_out + timedelta(days=rng.randint(1, 5)), time(10), UTC)
-    return Review(
+    return ListingReview(
         rating=overall,
         cleanliness=near_overall(),
         accuracy=near_overall(),
@@ -153,7 +167,15 @@ def _review(rng: random.Random, check_out: date) -> Review:
         location=near_overall(),
         value=near_overall(),
         comment=rng.choice(REVIEW_COMMENTS),
-        created_at=written,
+        created_at=_written_after(rng, check_out),
+    )
+
+
+def _guest_review(rng: random.Random, check_out: date) -> GuestReview:
+    return GuestReview(
+        rating=rng.choices([5, 4], weights=[85, 15])[0],
+        comment=rng.choice(GUEST_REVIEW_COMMENTS),
+        created_at=_written_after(rng, check_out),
     )
 
 
@@ -165,7 +187,7 @@ def _stays(
 
     cursor = today - timedelta(days=rng.randint(240, 330))
     while True:
-        nights = rng.randint(2, 6)
+        nights = rng.randint(1, 4)
         if cursor + timedelta(days=nights) >= today:
             break
         party = rng.randint(1, listing.max_guests)
@@ -178,15 +200,18 @@ def _stays(
         stays[-1].guest = demo
     reviewed = stays[:-1] if index in DEMO_AWAITING_REVIEW else stays
     for stay in reviewed:
-        stay.review = _review(rng, stay.check_out)
+        stay.review = _listing_review(rng, stay.check_out)
+        if rng.random() < 0.6:
+            stay.guest_review = _guest_review(rng, stay.check_out)
 
     cursor = today + timedelta(days=rng.randint(5, 20))
     for position in range(rng.randint(1, 2)):
-        nights = rng.randint(2, 5)
-        guest = demo if position == 0 and index in DEMO_UPCOMING | DEMO_CANCELLED else None
-        stay = _booking(listing, guest or rng.choice(others), cursor, nights, 1)
+        nights = rng.randint(2, 4)
+        is_demo = position == 0 and index in DEMO_UPCOMING | DEMO_CANCELLED
+        stay = _booking(listing, demo if is_demo else rng.choice(others), cursor, nights, 1)
         if position == 0 and index in DEMO_CANCELLED:
             stay.status = BookingStatus.CANCELLED
+            stay.cancelled_at = datetime.now(UTC) - timedelta(days=2)
         stays.append(stay)
         cursor += timedelta(days=nights + rng.randint(3, 15))
 
@@ -207,8 +232,7 @@ def seed(db: Session, password: str) -> None:
         _user(person, password_hash, now - timedelta(days=rng.randint(60, 900)))
         for person in GUESTS
     ]
-    demo = next(guest for guest in guests if guest.email == DEMO_GUEST_EMAIL)
-    others = [guest for guest in guests if guest is not demo]
+    demo, others = guests[0], guests[1:]
 
     amenities = {name: Amenity(name=name, icon=icon) for name, icon in AMENITIES}
     categories = {
@@ -219,13 +243,70 @@ def seed(db: Session, password: str) -> None:
         for index, seed in enumerate(LISTINGS)
     ]
     db.add_all([*hosts, *guests, *amenities.values(), *categories.values(), *listings])
-
     for index, listing in enumerate(listings):
         db.add_all(_stays(rng, index, listing, others, demo))
+
     db.flush()
-    db.add_all(
-        WishlistItem(user_id=demo.id, listing_id=listings[index].id) for index in DEMO_WISHLIST
-    )
+    for name, indexes in DEMO_WISHLISTS.items():
+        db.add(
+            Wishlist(
+                user_id=demo.id,
+                name=name,
+                items=[WishlistItem(listing=listings[index]) for index in indexes],
+            )
+        )
+    _seed_conversations(db, demo, listings)
+
+
+def _seed_conversations(db: Session, demo: User, listings: list[Listing]) -> None:
+    stay, getaway = listings[0], listings[20]
+    threads = [
+        (
+            stay,
+            [
+                (demo, "Hi! Is early check-in possible on the first day? Our flight lands at 9."),
+                (stay.host, "Hi Rohan, yes. The place will be ready from 11 am."),
+                (demo, "Perfect, thank you!"),
+            ],
+        ),
+        (
+            getaway,
+            [
+                (demo, "Hello, is the road to the cottage fine for a hatchback?"),
+                (getaway.host, "Yes, the last 2 km is a smooth estate road. Drive safe!"),
+            ],
+        ),
+    ]
+    for listing, lines in threads:
+        start = datetime.now(UTC) - timedelta(hours=len(lines) * 3)
+        conversation = Conversation(
+            listing_id=listing.id,
+            guest_id=demo.id,
+            last_message_at=start + timedelta(hours=(len(lines) - 1) * 3),
+        )
+        db.add(conversation)
+        db.flush()
+        for offset, (sender, body) in enumerate(lines):
+            message = Message(
+                conversation_id=conversation.id,
+                sender_id=sender.id,
+                body=body,
+                created_at=start + timedelta(hours=offset * 3),
+            )
+            db.add(message)
+            db.flush()
+            # Each sender has read up to their own message; the host's last reply stays unread.
+            if sender.id == demo.id:
+                conversation.guest_last_read_message_id = message.id
+            else:
+                conversation.host_last_read_message_id = message.id
+
+
+def migrate(reset: bool = False) -> None:
+    config = Config(str(ALEMBIC_INI))
+    if reset:
+        command.downgrade(config, "base")
+    command.upgrade(config, "head")
 
 
 def main() -> None:
@@ -237,10 +318,7 @@ def main() -> None:
     if not password:
         raise SystemExit("Set SEED_USER_PASSWORD in backend/.env before seeding.")
 
-    if args.reset:
-        Base.metadata.drop_all(engine)
-    create_tables()
-
+    migrate(reset=args.reset)
     with SessionLocal() as db:
         if db.scalar(select(User.id).limit(1)) is not None:
             print("Database already contains data. Run with --reset to reseed.")
