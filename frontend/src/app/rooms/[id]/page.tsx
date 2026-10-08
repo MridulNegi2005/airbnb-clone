@@ -7,7 +7,7 @@ type Props = { params: Promise<{ id: string }> };
 
 export async function generateMetadata({ params }: Props): Promise<Metadata> {
   const { id } = await params;
-  if (!/^\d+$/.test(id)) return { title: "Listing not found - Airbnb clone" };
+  if (!/^\d+$/.test(id)||!Number.isSafeInteger(Number(id))||Number(id)<1) return { title: "Listing not found - Airbnb clone" };
   try {
     const listing = await getListing(Number(id));
     return { title: { absolute: `${listing.title} - Airbnb clone` }, description: listing.description.slice(0, 160) };
@@ -18,7 +18,7 @@ export async function generateMetadata({ params }: Props): Promise<Metadata> {
 
 export default async function ListingPage({ params }: Props) {
   const { id } = await params;
-  if (!/^\d+$/.test(id) || Number(id) < 1) notFound();
+  if (!/^\d+$/.test(id) || !Number.isSafeInteger(Number(id)) || Number(id) < 1) notFound();
   const listing = await getListing(Number(id)).catch((error: unknown) => {
     if (error instanceof ApiError && error.status === 404) notFound();
     throw error;

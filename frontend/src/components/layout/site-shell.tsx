@@ -47,14 +47,14 @@ function Header({hosting=false}:{hosting?:boolean}) {
   const closeSearch=useCallback(()=>setSearchOpen(false),[]),closeRegion=useCallback(()=>setRegionOpen(false),[]);
   useEffect(()=>{
     if(!menuOpen)return;
-    const frame=requestAnimationFrame(()=>menu.current?.querySelector<HTMLElement>('[role="menuitem"]')?.focus());
+    const frame=requestAnimationFrame(()=>menu.current?.querySelector<HTMLElement>('[role="menuitem"]')?.focus({preventScroll:true}));
     const pointer=(event:PointerEvent)=>{if(event.target instanceof Node&&!menu.current?.contains(event.target))setMenuOpen(false);};
     const key=(event:KeyboardEvent)=>{
-      if(event.key==="Escape"){setMenuOpen(false);menuTrigger.current?.focus();}
+      if(event.key==="Escape"){setMenuOpen(false);menuTrigger.current?.focus({preventScroll:true});}
       if(event.key==="ArrowDown"||event.key==="ArrowUp"){
         const options=Array.from(menu.current?.querySelectorAll<HTMLElement>('[role="menuitem"]')??[]);
         const current=options.indexOf(document.activeElement as HTMLElement);
-        event.preventDefault();options[(current+(event.key==="ArrowDown"?1:-1)+options.length)%options.length]?.focus();
+        event.preventDefault();options[(current+(event.key==="ArrowDown"?1:-1)+options.length)%options.length]?.focus({preventScroll:true});
       }
     };
     document.addEventListener("pointerdown",pointer);document.addEventListener("keydown",key);
@@ -99,6 +99,6 @@ export function SiteShell({children}:{children:ReactNode}){
   const path=usePathname();
   if(path.startsWith("/hosting/listings/"))return <>{children}</>;
   const inbox=path.startsWith("/messages"),checkout=path.startsWith("/book/"),account=path==="/account",wishlistDetail=path.startsWith("/wishlists/");
-  const className=path.startsWith("/account/profile")?"profile-editor-shell":path==="/trips"?"trips-shell":path.startsWith("/rooms/")?"detail-shell":path.startsWith("/book/")?"checkout-shell":inbox?"inbox-shell":wishlistDetail?"wishlist-detail-shell":"";
+  const className=path.startsWith("/users/")?"public-profile-shell":path.startsWith("/account/profile")?"profile-editor-shell":path==="/trips"?"trips-shell":path.startsWith("/rooms/")?"detail-shell":path.startsWith("/book/")?"checkout-shell":inbox?"inbox-shell":wishlistDetail?"wishlist-detail-shell":"";
   return <div className={`${className} ${path==="/"?styles.homeRoute:""}`}>{account?<header className={styles.accountHeader}><Link href="/" className="brand-logo" aria-label="Airbnb clone home"><Image src="/airbnb.svg" width={32} height={36} alt=""/></Link><Link href="/" className="outline-button">Done</Link></header>:checkout?<header className={styles.checkoutHeader}><Link href="/" className="brand-logo" aria-label="Airbnb clone home"><Image src="/airbnb.svg" width={32} height={36} alt=""/><span>airbnb</span></Link></header>:<Suspense fallback={<div style={{height:80,borderBottom:"1px solid var(--divider)"}}/>}><Header hosting={path.startsWith("/hosting")}/></Suspense>}<main id="main-content">{children}</main>{!inbox&&!account&&!wishlistDetail&&(checkout?<footer className={styles.checkoutFooter}><span>© {new Date().getFullYear()} Airbnb clone</span><Link href="/privacy">Privacy</Link><Link href="/terms">Terms</Link><Link href="/coming-soon">Company details</Link></footer>:<Footer/>)}<MobileTabs/></div>;
 }

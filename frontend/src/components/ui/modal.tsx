@@ -7,7 +7,7 @@ const stack: symbol[] = [];
 const subscribe = () => () => {};
 let originalOverflow="";
 let originalPadding="";
-export function Modal({open,onClose,title,children,footer,width=568,presentation="default"}: {open:boolean;onClose:()=>void;title:string;children:ReactNode;footer?:ReactNode;width?:number;presentation?:"default"|"reviews"|"calendar"|"filters"|"checkout"|"profile"|"message-details"}) {
+export function Modal({open,onClose,title,children,footer,width=568,presentation="default"}: {open:boolean;onClose:()=>void;title:string;children:ReactNode;footer?:ReactNode;width?:number;presentation?:"default"|"reviews"|"calendar"|"filters"|"checkout"|"profile"|"message-details"|"wishlist"}) {
   const mounted = useSyncExternalStore(subscribe,()=>true,()=>false);
   const [present,setPresent] = useState(open);
   if(open&&!present) setPresent(true);

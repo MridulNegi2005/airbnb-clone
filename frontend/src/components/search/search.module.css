@@ -21,3 +21,4 @@
 @media(prefers-reduced-motion:reduce){.amenityPill{transition:none}}
 
 @media(max-width:743px){.homepage .bar{height:56px;min-height:56px}.homepage .segment,.homepage .segmentGroup>.segment{height:54px;min-height:54px;padding-top:8px;padding-bottom:8px}.homepage .label{line-height:14px}.homepage .value,.homepage .input{line-height:16px}}
+@media(max-width:360px){.mobileTypes{left:24px;gap:16px}.mobileTypes button:last-child{margin-right:0}.mobileExpanded :global(.rdp-root){--rdp-day-width:34px;--rdp-day-height:40px;--rdp-day_button-width:32px;--rdp-day_button-height:38px}.mobileSheet .mobileClose{right:12px}}
