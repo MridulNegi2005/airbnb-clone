@@ -26,6 +26,14 @@ def test_seed_creates_consistent_demo_data(client: TestClient) -> None:
             assert previous_out <= next_in
 
     assert client.get("/api/listings").json()["total"] == len(LISTINGS)
+
+    def login_status(email: str) -> int:
+        body = {"email": email, "password": "demo-password"}
+        return client.post("/api/auth/login", json=body).status_code
+
+    assert login_status("kavya@example.com") == 200
+    assert login_status("vikram@example.com") == 401
+    assert login_status("ananya@example.com") == 401
     login = client.post(
         "/api/auth/login", json={"email": "rohan@example.com", "password": "demo-password"}
     )

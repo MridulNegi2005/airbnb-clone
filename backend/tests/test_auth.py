@@ -15,10 +15,17 @@ def sign_in_with_google(
     subject: str = "google-sub-1",
     email: str = "ana@example.com",
     picture: str | None = "https://lh3.googleusercontent.com/ana.jpg",
+    hosted_domain: str | None = None,
 ) -> Any:
     def fake_verify(credential: str, client_id: str) -> GoogleIdentity:
         assert (credential, client_id) == ("id-token", get_settings().google_client_id)
-        return GoogleIdentity(subject=subject, email=email, name="Ana Google", picture=picture)
+        return GoogleIdentity(
+            subject=subject,
+            email=email,
+            name="Ana Google",
+            picture=picture,
+            hosted_domain=hosted_domain,
+        )
 
     monkeypatch.setattr(auth_router, "verify_google_credential", fake_verify)
     return client.post("/api/auth/google", json={"credential": "id-token"})
@@ -101,17 +108,43 @@ def test_google_sign_in_creates_a_new_user(
     assert again.json()["user"]["id"] == user["id"]
 
 
-def test_google_sign_in_links_existing_password_account(
-    client: TestClient, monkeypatch: pytest.MonkeyPatch
-) -> None:
-    original_id = user_id(client, register(client, "Ana"))
+def register_email(client: TestClient, email: str) -> Headers:
+    response = client.post(
+        "/api/auth/register", json={"name": "Ana", "email": email, "password": "password123"}
+    )
+    assert response.status_code == 201
+    return bearer(response.json()["access_token"])
 
-    response = sign_in_with_google(client, monkeypatch)
+
+@pytest.mark.parametrize(
+    ("email", "hosted_domain"),
+    [("ana@gmail.com", None), ("ana@company.example", "company.example")],
+)
+def test_google_takes_over_an_account_registered_with_its_email(
+    client: TestClient, monkeypatch: pytest.MonkeyPatch, email: str, hosted_domain: str | None
+) -> None:
+    # Someone may have registered the address first; Google proves who really owns it.
+    squatter = register_email(client, email)
+    original_id = user_id(client, squatter)
+
+    response = sign_in_with_google(client, monkeypatch, email=email, hosted_domain=hosted_domain)
     assert response.status_code == 200
     user = response.json()["user"]
     assert user["id"] == original_id
     assert user["has_google"] is True
-    assert user["has_password"] is True
+    assert user["has_password"] is False
+    assert password_login(client, email) == 401
+    assert client.get("/api/auth/me", headers=squatter).status_code == 401
+    owner = bearer(response.json()["access_token"])
+    assert client.get("/api/auth/me", headers=owner).status_code == 200
+
+
+def test_google_does_not_link_addresses_it_cannot_vouch_for(
+    client: TestClient, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    register_email(client, "ana@example.com")
+    response = sign_in_with_google(client, monkeypatch, email="ana@example.com")
+    assert response.status_code == 409
     assert password_login(client, "ana@example.com") == 200
 
 

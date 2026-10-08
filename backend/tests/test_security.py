@@ -60,16 +60,18 @@ def test_tampered_and_forged_tokens_are_rejected(client: TestClient, guest: Head
 def test_expired_and_incomplete_tokens_are_rejected(client: TestClient, guest: Headers) -> None:
     secret = get_settings().secret_key
     subject = str(user_id(client, guest))
-    expired = jwt.encode(
-        {"sub": subject, "exp": datetime.now(UTC) - timedelta(seconds=1)},
-        secret,
-        algorithm="HS256",
-    )
-    no_expiry = jwt.encode({"sub": subject}, secret, algorithm="HS256")
-    unknown_user = jwt.encode(
-        {"sub": "999999", "exp": datetime.now(UTC) + timedelta(hours=1)}, secret, algorithm="HS256"
-    )
-    for bad in (expired, no_expiry, unknown_user):
+    later = datetime.now(UTC) + timedelta(hours=1)
+
+    def token(**claims: Any) -> str:
+        return jwt.encode({"sub": subject, "ver": 0, "exp": later} | claims, secret, "HS256")
+
+    assert client.get("/api/auth/me", headers=bearer(token())).status_code == 200
+    expired = token(exp=datetime.now(UTC) - timedelta(seconds=1))
+    no_expiry = jwt.encode({"sub": subject, "ver": 0}, secret, algorithm="HS256")
+    no_version = jwt.encode({"sub": subject, "exp": later}, secret, algorithm="HS256")
+    stale_version = token(ver=-1)
+    unknown_user = token(sub="999999")
+    for bad in (expired, no_expiry, no_version, stale_version, unknown_user):
         assert client.get("/api/auth/me", headers=bearer(bad)).status_code == 401
 
 
@@ -245,12 +247,30 @@ def test_non_image_and_unsupported_uploads_are_rejected(
     assert client.post("/api/uploads", files=files, headers=host).status_code == 415
 
 
-def test_decompression_bomb_is_rejected(client: TestClient, host: Headers) -> None:
+@pytest.mark.parametrize(
+    ("mode", "side"),
+    [("1", 12_000), ("RGBA", 6_300), ("RGBA", 4_500)],
+)
+def test_small_files_with_huge_dimensions_are_rejected_before_decoding(
+    client: TestClient, host: Headers, mode: str, side: int
+) -> None:
+    # 4500 x 4500 sits between the limit and twice it, where Pillow only warns by default.
     buffer = io.BytesIO()
-    Image.new("1", (12_000, 12_000)).save(buffer, "PNG")
+    Image.new(mode, (side, side)).save(buffer, "PNG", optimize=True)
     assert len(buffer.getvalue()) < 1_000_000
     files = {"file": ("bomb.png", buffer.getvalue(), "image/png")}
-    assert client.post("/api/uploads", files=files, headers=host).status_code == 415
+    response = client.post("/api/uploads", files=files, headers=host)
+    assert response.status_code == 413
+    assert response.json()["detail"] == "Image is larger than 16 megapixels"
+
+
+def test_large_real_photos_are_still_accepted(client: TestClient, host: Headers) -> None:
+    buffer = io.BytesIO()
+    Image.new("RGB", (4000, 3000), (120, 90, 60)).save(buffer, "JPEG")
+    files = {"file": ("photo.jpg", buffer.getvalue(), "image/jpeg")}
+    response = client.post("/api/uploads", files=files, headers=host)
+    assert response.status_code == 201
+    assert (response.json()["width"], response.json()["height"]) == (2048, 1536)
 
 
 def test_upload_filename_cannot_choose_the_storage_path(client: TestClient, host: Headers) -> None:
