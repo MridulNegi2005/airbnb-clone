@@ -2,6 +2,7 @@ from typing import Any
 
 from fastapi.testclient import TestClient
 
+from app.main import app
 from tests.conftest import Headers
 
 PNG_BYTES = b"\x89PNG\r\n\x1a\n" + b"\x00" * 32
@@ -46,3 +47,9 @@ def test_oversized_upload_is_rejected_before_parsing(client: TestClient, host: H
     headers = {**host, "Content-Length": str(50 * 1024 * 1024)}
     response = client.post("/api/uploads", content=b"x", headers=headers)
     assert response.status_code == 413
+
+
+def test_upload_guard_works_behind_a_path_prefix(host: Headers) -> None:
+    with TestClient(app, root_path="/backend") as prefixed:
+        headers = {**host, "Content-Length": str(50 * 1024 * 1024)}
+        assert prefixed.post("/api/uploads", content=b"x", headers=headers).status_code == 413

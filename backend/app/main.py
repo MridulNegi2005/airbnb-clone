@@ -3,6 +3,7 @@ from contextlib import asynccontextmanager
 from pathlib import Path
 
 from fastapi import FastAPI, Request, Response, status
+from fastapi.exceptions import RequestValidationError
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import JSONResponse
 from fastapi.staticfiles import StaticFiles
@@ -20,11 +21,25 @@ async def lifespan(_app: FastAPI) -> AsyncIterator[None]:
     yield
 
 
+def _route_path(request: Request) -> str:
+    # Starlette keeps the deployment prefix (root_path) in scope["path"]; routing ignores it.
+    return request.scope["path"].removeprefix(request.scope.get("root_path", ""))
+
+
+async def validation_error_handler(_request: Request, exc: RequestValidationError) -> JSONResponse:
+    # Leave out the rejected input: values like NaN cannot be encoded as JSON.
+    errors = [
+        {"loc": error["loc"], "msg": error["msg"], "type": error["type"]} for error in exc.errors()
+    ]
+    return JSONResponse({"detail": errors}, status_code=status.HTTP_422_UNPROCESSABLE_CONTENT)
+
+
 async def guard_uploads(
     request: Request, call_next: Callable[[Request], Awaitable[Response]]
 ) -> Response:
     # Reject oversized uploads before the multipart parser spools the body to disk.
-    if request.method == "POST" and request.url.path == "/api/uploads":
+    path = _route_path(request)
+    if request.method == "POST" and path == "/api/uploads":
         length = request.headers.get("content-length", "")
         if not length.isdigit():
             return JSONResponse(
@@ -37,7 +52,7 @@ async def guard_uploads(
             )
 
     response = await call_next(request)
-    if request.url.path.startswith("/uploads/"):
+    if path.startswith("/uploads/"):
         response.headers["X-Content-Type-Options"] = "nosniff"
         response.headers["Content-Security-Policy"] = "default-src 'none'"
     return response
@@ -49,6 +64,7 @@ def create_app() -> FastAPI:
     upload_dir.mkdir(parents=True, exist_ok=True)
 
     app = FastAPI(title="Airbnb Clone API", version="1.0.0", lifespan=lifespan)
+    app.add_exception_handler(RequestValidationError, validation_error_handler)
     # Registered before CORS so that CORS wraps it and error responses still carry CORS headers.
     app.middleware("http")(guard_uploads)
     app.add_middleware(
