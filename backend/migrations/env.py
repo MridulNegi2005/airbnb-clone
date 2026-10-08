@@ -34,6 +34,8 @@ def run_migrations() -> None:
             render_as_batch=True,
             compare_type=True,
             render_item=render_item,
+            # One transaction for the whole upgrade, so the check below can undo all of it.
+            transactional_ddl=True,
         )
         with context.begin_transaction():
             context.run_migrations()
