@@ -1,0 +1,26 @@
+services:
+  api:
+    build: .
+    image: airbnb-clone-api
+    container_name: airbnb-api
+    # Caddy on the host proxies to 127.0.0.1, so the API sees the proxy as a trusted local peer.
+    network_mode: host
+    env_file: .env
+    environment:
+      PORT: "8002"
+      DATABASE_URL: sqlite:////app/data/airbnb.db
+      STORAGE_BACKEND: gcs
+      GCS_CREDENTIALS_FILE: /run/secrets/gcs-service-account.json
+    volumes:
+      - ./data:/app/data
+      - ./secrets/gcs-service-account.json:/run/secrets/gcs-service-account.json:ro
+    read_only: true
+    tmpfs:
+      - /tmp
+    cap_drop:
+      - ALL
+    security_opt:
+      - no-new-privileges:true
+    mem_limit: 512m
+    cpus: 1.0
+    restart: unless-stopped
