@@ -26,6 +26,7 @@ def test_quote_breaks_down_price_in_rupees(client: TestClient, listing: Json) ->
         "nights": 3,
         "nightly_rate": 2500,
         "subtotal": 7500,
+        "discount": 0,
         "cleaning_fee": 500,
         "service_fee": 1120,
         "total": 9120,
