@@ -1,14 +1,14 @@
 from dataclasses import dataclass
-from datetime import date
+from datetime import UTC, date, datetime
 
 from fastapi import HTTPException, status
-from sqlalchemy import Select, func, select
+from sqlalchemy import Select, select
 from sqlalchemy.exc import IntegrityError
 from sqlalchemy.orm import Session, joinedload, selectinload
 
 from app.config import get_settings
-from app.models import Booking, BookingStatus, Listing, Review, User
-from app.schemas.booking import BookingCreate, ReviewCreate
+from app.models import Booking, BookingStatus, GuestReview, Listing, ListingReview, User
+from app.schemas.booking import BookingCreate, GuestReviewCreate, ListingReviewCreate
 from app.schemas.listing import PriceQuote, StayParams
 from app.services.availability import is_available, lock_listing_calendar
 
@@ -65,6 +65,7 @@ def booking_query() -> Select[tuple[Booking]]:
     return select(Booking).options(
         joinedload(Booking.guest),
         selectinload(Booking.review),
+        selectinload(Booking.guest_review),
         selectinload(Booking.listing).selectinload(Listing.images),
         selectinload(Booking.listing).joinedload(Listing.host),
     )
@@ -72,7 +73,7 @@ def booking_query() -> Select[tuple[Booking]]:
 
 def create_booking(db: Session, guest: User, payload: BookingCreate) -> Booking:
     listing = db.get(Listing, payload.listing_id)
-    if listing is None:
+    if listing is None or listing.archived_at is not None:
         raise HTTPException(status.HTTP_404_NOT_FOUND, detail="Listing not found")
     if listing.host_id == guest.id:
         raise HTTPException(status.HTTP_403_FORBIDDEN, detail="You cannot book your own listing")
@@ -113,41 +114,70 @@ def get_booking(db: Session, booking_id: int, user: User) -> Booking:
     return booking
 
 
-def _get_own_trip(db: Session, booking_id: int, guest: User) -> Booking:
+def _get_as_guest(db: Session, booking_id: int, guest: User) -> Booking:
     booking = get_booking(db, booking_id, guest)
     if booking.guest_id != guest.id:
         raise HTTPException(status.HTTP_404_NOT_FOUND, detail="Booking not found")
     return booking
 
 
+def _get_as_host(db: Session, booking_id: int, host: User) -> Booking:
+    booking = get_booking(db, booking_id, host)
+    if booking.listing.host_id != host.id:
+        raise HTTPException(status.HTTP_404_NOT_FOUND, detail="Booking not found")
+    return booking
+
+
 def cancel_booking(db: Session, booking_id: int, guest: User) -> Booking:
-    booking = _get_own_trip(db, booking_id, guest)
+    booking = _get_as_guest(db, booking_id, guest)
     if booking.status != BookingStatus.CONFIRMED or booking.check_in <= date.today():
         raise HTTPException(
             status.HTTP_400_BAD_REQUEST, detail="Only upcoming trips can be cancelled"
         )
     booking.status = BookingStatus.CANCELLED
+    booking.cancelled_at = datetime.now(UTC)
     db.commit()
     return booking
 
 
-def review_booking(db: Session, booking_id: int, guest: User, payload: ReviewCreate) -> Review:
-    booking = _get_own_trip(db, booking_id, guest)
+def _ensure_stay_completed(booking: Booking) -> None:
     if booking.status != BookingStatus.CONFIRMED or booking.check_out > date.today():
-        raise HTTPException(
-            status.HTTP_400_BAD_REQUEST, detail="You can review a stay after check-out"
-        )
-    if booking.review is not None:
-        raise HTTPException(status.HTTP_409_CONFLICT, detail="You already reviewed this stay")
-    review = Review(booking=booking, **payload.model_dump())
-    db.add(review)
+        raise HTTPException(status.HTTP_400_BAD_REQUEST, detail="Reviews open after check-out")
+
+
+def _commit_review(db: Session) -> None:
     try:
         db.commit()
     except IntegrityError:
         db.rollback()
         raise HTTPException(
-            status.HTTP_409_CONFLICT, detail="You already reviewed this stay"
+            status.HTTP_409_CONFLICT, detail="This stay has already been reviewed"
         ) from None
+
+
+def review_listing(
+    db: Session, booking_id: int, guest: User, payload: ListingReviewCreate
+) -> ListingReview:
+    booking = _get_as_guest(db, booking_id, guest)
+    _ensure_stay_completed(booking)
+    if booking.review is not None:
+        raise HTTPException(status.HTTP_409_CONFLICT, detail="This stay has already been reviewed")
+    review = ListingReview(booking=booking, **payload.model_dump())
+    db.add(review)
+    _commit_review(db)
+    return review
+
+
+def review_guest(
+    db: Session, booking_id: int, host: User, payload: GuestReviewCreate
+) -> GuestReview:
+    booking = _get_as_host(db, booking_id, host)
+    _ensure_stay_completed(booking)
+    if booking.guest_review is not None:
+        raise HTTPException(status.HTTP_409_CONFLICT, detail="This guest has already been reviewed")
+    review = GuestReview(booking=booking, **payload.model_dump())
+    db.add(review)
+    _commit_review(db)
     return review
 
 
@@ -156,26 +186,3 @@ def list_host_bookings(db: Session, host: User, listing_id: int | None) -> list[
     if listing_id is not None:
         stmt = stmt.where(Booking.listing_id == listing_id)
     return list(db.scalars(stmt.order_by(Booking.check_in.desc())))
-
-
-def upcoming_booking_counts(db: Session, host: User) -> dict[int, int]:
-    rows = db.execute(
-        select(Booking.listing_id, func.count(Booking.id))
-        .join(Booking.listing)
-        .where(
-            Listing.host_id == host.id,
-            Booking.status == BookingStatus.CONFIRMED,
-            Booking.check_out > date.today(),
-        )
-        .group_by(Booking.listing_id)
-    )
-    return {listing_id: count for listing_id, count in rows}
-
-
-def has_upcoming_bookings(db: Session, listing_id: int) -> bool:
-    stmt = select(Booking.id).where(
-        Booking.listing_id == listing_id,
-        Booking.status == BookingStatus.CONFIRMED,
-        Booking.check_out > date.today(),
-    )
-    return db.scalar(stmt.limit(1)) is not None
