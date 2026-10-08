@@ -1,12 +1,13 @@
 "use client";
 
 import { AppImage as Image } from "@/components/ui/app-image";
-import { useState, type FormEvent } from "react";
+import { useRef, useState, type FormEvent } from "react";
 import { useMutation, useQueryClient } from "@tanstack/react-query";
 import { toast } from "sonner";
 import { Modal } from "@/components/ui/modal";
 import { createReview, queryKeys } from "@/lib/api";
 import { formatDateRange } from "@/lib/format";
+import { toDateString } from "@/lib/dates";
 import type { Booking, ReviewInput } from "@/types/api";
 import { useApiCooldown } from "@/hooks/use-api-cooldown";
 import { StarRating } from "@/components/ui/star-rating";
@@ -18,15 +19,20 @@ const categories = [
 ] as const;
 const initial: ReviewInput = { rating: 0, cleanliness: 0, accuracy: 0, check_in: 0, communication: 0, location: 0, value: 0, comment: "" };
 
-export function ReviewModal({ booking, open, onClose }: { booking: Booking; open: boolean; onClose: () => void }) {
-  const client = useQueryClient();const cooldown=useApiCooldown();
+export function ReviewModal({ booking, open, onClose, cooldown }: { booking: Booking; open: boolean; onClose: () => void; cooldown: ReturnType<typeof useApiCooldown> }) {
+  const client = useQueryClient();
+  const submissionPending = useRef(false);
   const [draft, setDraft] = useState<ReviewInput>(initial);
   const [error, setError] = useState("");
   const comment = draft.comment.trim();
-  const valid = draft.rating >= 1 && categories.every(([key]) => draft[key] >= 1) && comment.length >= 1 && comment.length <= 2000;
+  const ratingValid = (value: number) => Number.isInteger(value) && value >= 1 && value <= 5;
+  const eligible = booking.status === "confirmed" && booking.check_out <= toDateString(new Date()) && !booking.has_review;
+  const valid = eligible && ratingValid(draft.rating) && categories.every(([key]) => ratingValid(draft[key])) && comment.length >= 1 && comment.length <= 2000;
   const mutation = useMutation({
+    retry: false,
     mutationFn: (body: ReviewInput) => createReview(booking.id, body),
     onSuccess: async () => {
+      await client.cancelQueries({ queryKey: queryKeys.bookings });
       client.setQueryData<Booking[]>(queryKeys.bookings, current => current?.map(trip => trip.id === booking.id ? { ...trip, has_review: true } : trip));
       toast.success("Thanks for your review!");
       onClose();
@@ -37,6 +43,7 @@ export function ReviewModal({ booking, open, onClose }: { booking: Booking; open
         client.invalidateQueries({ queryKey: ["listings"] }),
         client.invalidateQueries({ queryKey: queryKeys.wishlist }),
         client.invalidateQueries({ queryKey: queryKeys.hostListings }),
+        client.invalidateQueries({ queryKey: queryKeys.hostBookings }),
         client.invalidateQueries({ queryKey: queryKeys.profile(booking.listing.host.id) }),
         client.invalidateQueries({ queryKey: queryKeys.userListings(booking.listing.host.id) }),
         client.invalidateQueries({ queryKey: ["user-reviews", booking.listing.host.id] }),
@@ -46,14 +53,16 @@ export function ReviewModal({ booking, open, onClose }: { booking: Booking; open
       setError(reason instanceof Error ? reason.message : "Your review could not be submitted. Please try again.");
       void client.invalidateQueries({ queryKey: queryKeys.bookings });
     },
+    onSettled: () => { submissionPending.current = false; },
   });
   function submit(event: FormEvent<HTMLFormElement>) {
     event.preventDefault();
-    if (!open || !valid || mutation.isPending || cooldown.blocked) return;
+    if (!open || !valid || submissionPending.current || cooldown.blocked) return;
+    submissionPending.current = true;
     setError("");
     mutation.mutate({ ...draft, comment });
   }
-  return <Modal open={open} onClose={() => { if (!mutation.isPending) onClose(); }} title="Leave a review" width={568}
+  return <Modal open={open} onClose={() => { if (!submissionPending.current) onClose(); }} title="Leave a review" width={568}
     footer={<button className={`dark-button ${styles.submitReview}`} type="submit" form="trip-review-form" disabled={!open || !valid || mutation.isPending || cooldown.blocked}>{mutation.isPending ? "Submitting..." : "Submit review"}</button>}>
     <form id="trip-review-form" onSubmit={submit} className={styles.reviewForm}>
       <div className={styles.listingSummary}>{booking.listing.cover_image_url && <div className={styles.smallPhoto}><Image src={booking.listing.cover_image_url} alt={booking.listing.title} fill sizes="64px" /></div>}

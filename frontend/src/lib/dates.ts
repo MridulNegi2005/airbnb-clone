@@ -22,11 +22,13 @@ export function blockedNights(ranges: BookedRange[]): Set<string> {
   }
   return nights;
 }
-export function validateStay(checkIn: string, checkOut: string, bookedRanges: BookedRange[] = []): string | null {
+export function validateStay(checkIn: string, checkOut: string, bookedRanges: BookedRange[] = [], limits?: { min_nights: number; max_nights: number }): string | null {
   if (!validDate(checkIn) || !validDate(checkOut)) return "Choose valid check-in and checkout dates.";
   if (checkIn < toDateString(new Date())) return "Check-in cannot be in the past.";
   const nights = countNights(checkIn, checkOut);
   if (nights < 1 || nights > 365) return "Choose a stay between 1 and 365 nights.";
+  if (limits && nights < limits.min_nights) return `Minimum stay: ${limits.min_nights} ${limits.min_nights === 1 ? "night" : "nights"}.`;
+  if (limits && nights > limits.max_nights) return `Maximum stay: ${limits.max_nights} ${limits.max_nights === 1 ? "night" : "nights"}.`;
   if (bookedRanges.some((range) => checkIn < range.check_out && checkOut > range.check_in)) return "Those dates are no longer available.";
   return null;
 }

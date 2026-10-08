@@ -19,17 +19,18 @@ function subscribeViewport(callback: () => void) {
 const smallViewport = () => window.matchMedia("(max-width: 743px)").matches;
 const serverViewport = () => false;
 
-export function EditDatesModal({ initial, bookedRanges, ready, failed, onRetry, onClose, onSave }: {
-  initial: DateRange | undefined; bookedRanges: BookedRange[]; ready: boolean; failed: boolean; onRetry: () => void; onClose: () => void; onSave: (range: DateRange) => void;
+export function EditDatesModal({ initial, bookedRanges, minNights, maxNights, ready, failed, onRetry, onClose, onSave }: {
+  initial: DateRange | undefined; bookedRanges: BookedRange[]; minNights: number; maxNights: number; ready: boolean; failed: boolean; onRetry: () => void; onClose: () => void; onSave: (range: DateRange) => void;
 }) {
   const [range, setRange] = useState(initial);
   const compact = useSyncExternalStore(subscribeViewport, smallViewport, serverViewport);
-  const error = range?.from && range.to ? validateStay(toDateString(range.from), toDateString(range.to), bookedRanges) : "Select your check-in and checkout dates.";
+  const error = range?.from && range.to ? validateStay(toDateString(range.from), toDateString(range.to), bookedRanges, { min_nights: minNights, max_nights: maxNights }) : "Select your check-in and checkout dates.";
   return <Modal open onClose={onClose} title="Change dates" width={780} footer={<div className={styles.modalActions}>
     <button type="button" className={styles.textButton} onClick={() => setRange(undefined)}>Clear dates</button>
     <button type="button" className={styles.darkButton} disabled={Boolean(error) || !ready} onClick={() => { if (range && !error && ready) onSave(range); }}>Save</button>
   </div>}>
-    {ready ? <div className={styles.calendar}><DatePicker value={range} onChange={setRange} bookedRanges={bookedRanges} numberOfMonths={compact ? 1 : 2} /></div> : failed ? <div role="alert"><p className={styles.error}>We could not load availability.</p><button type="button" className={styles.textButton} onClick={onRetry}>Try again</button></div> : <div className={`${styles.skeleton} ${styles.sectionSkeleton}`} aria-label="Loading availability" aria-busy="true" />}
+    {ready ? <div className={styles.calendar}><DatePicker value={range} onChange={setRange} bookedRanges={bookedRanges} minNights={minNights} maxNights={maxNights} numberOfMonths={compact ? 1 : 2} /></div> : failed ? <div role="alert"><p className={styles.error}>We could not load availability.</p><button type="button" className={styles.textButton} onClick={onRetry}>Try again</button></div> : <div className={`${styles.skeleton} ${styles.sectionSkeleton}`} aria-label="Loading availability" aria-busy="true" />}
+    <p className={styles.secondary}>Minimum stay: {minNights} {minNights === 1 ? "night" : "nights"}</p>
     <p className={styles.secondary} aria-live="polite">{error ?? "Your selected dates are available."}</p>
   </Modal>;
 }

@@ -34,6 +34,7 @@ export function CheckoutClient({ id }: { id: number }) {
   const cache = useQueryClient();const cooldown=useApiCooldown();
   const { user, status, openAuth } = useAuth();
   const prompted = useRef(false);
+  const confirmationPending = useRef(false);
   const [datesOpen, setDatesOpen] = useState(false);
   const [guestsOpen, setGuestsOpen] = useState(false);
   const [comingSoon, setComingSoon] = useState<string | null>(null);
@@ -56,7 +57,7 @@ export function CheckoutClient({ id }: { id: number }) {
   const adults = Math.max(1, numberParam(params.get("adults"), 1, maxGuests));
   const guests: TripGuests = { adults, children: numberParam(params.get("children"), 0, Math.max(0, maxGuests - adults)), infants: numberParam(params.get("infants"), 0, 5), pets: numberParam(params.get("pets"), 0, 5) };
   const stay = { check_in: checkIn, check_out: checkOut, guests: guests.adults + guests.children };
-  const dateError = validateStay(checkIn, checkOut, availability.data);
+  const dateError = validateStay(checkIn, checkOut, availability.data, listing.data);
   const quote = useQuery({ queryKey: queryKeys.quote(id, stay), queryFn: ({ signal }) => getQuote(id, stay, signal), enabled: validId && Boolean(listing.data) && availability.isSuccess && !dateError });
   function updateTrip(values: Record<string, string>) {
     const next = new URLSearchParams(params);
@@ -65,11 +66,12 @@ export function CheckoutClient({ id }: { id: number }) {
     router.replace(`/book/${id}?${next}`, { scroll: false });
   }
   const booking = useMutation({
+    retry: false,
     mutationFn: async () => {
       if (!user) throw new ApiError(401, "Log in to confirm your trip.");
       if (user.id === listing.data?.host.id) throw new ApiError(403, "You cannot book your own listing.");
       const latestDates = await cache.fetchQuery({ queryKey: queryKeys.availability(id), queryFn: ({ signal }) => getBookedDates(id, signal), staleTime: 0 });
-      const validation = validateStay(checkIn, checkOut, latestDates);
+      const validation = validateStay(checkIn, checkOut, latestDates, listing.data);
       if (validation) throw new ApiError(409, validation);
       if (stay.guests < 1 || stay.guests > maxGuests) throw new ApiError(422, `Choose no more than ${maxGuests} guests.`);
       const latestQuote = await cache.fetchQuery({ queryKey: queryKeys.quote(id, stay), queryFn: ({ signal }) => getQuote(id, stay, signal), staleTime: 0 });
@@ -91,6 +93,7 @@ export function CheckoutClient({ id }: { id: number }) {
       } else if (error instanceof ApiError) setSubmitError(error.message);
       else { toast.error("Something went wrong. Please try again."); setSubmitError("We could not confirm your booking. Your form is still here; please try again."); }
     },
+    onSettled: () => { confirmationPending.current = false; },
   });
   if (status === "loading" || (validId && listing.isPending)) return <CheckoutSkeleton />;
   if (!validId || (listing.error instanceof ApiError && listing.error.status === 404)) return <section className={styles.page}><h1>We couldn&apos;t find this place</h1><p>This listing may no longer be available.</p><Link href="/" className={styles.outlineButton}>Start exploring</Link></section>;
@@ -113,12 +116,12 @@ export function CheckoutClient({ id }: { id: number }) {
 
         {status === "anonymous" ? <section className={styles.section}><h2>Log in to book your trip</h2><p>Your dates and guests will be kept while you log in.</p><button type="button" className={styles.darkButton} onClick={() => openAuth(undefined, () => router.replace(listingUrl))}>Log in</button></section> : <>
           {user?.id === property.host.id && <p className={styles.error} role="alert">You cannot book your own listing.</p>}
-          <PaymentForm host={property.host} onMessage={() => setMessageOpen(true)} pending={booking.isPending} disabled={disabled} error={submitError} onConfirm={() => { if (disabled || booking.isPending) return; setSubmitError(null); booking.mutate(); }} onComingSoon={setComingSoon} />
+          <PaymentForm host={property.host} onMessage={() => setMessageOpen(true)} pending={booking.isPending} disabled={disabled} error={submitError} onConfirm={() => { if (disabled || confirmationPending.current) return; confirmationPending.current = true; setSubmitError(null); booking.mutate(); }} onComingSoon={setComingSoon} />
         </>}
       </div>
       <CheckoutSummaryCard listing={property} quote={!dateError ? quote.data : undefined} loading={quote.isFetching} error={quoteError} onRetry={() => void quote.refetch()} onPolicy={() => setPolicyOpen(true)}>{tripDetails}</CheckoutSummaryCard>
     </div>
-    {datesOpen && <EditDatesModal initial={dateRange(checkIn, checkOut)} bookedRanges={availability.data ?? []} ready={availability.isSuccess && !availability.isFetching} failed={availability.isError} onRetry={() => void availability.refetch()} onClose={() => setDatesOpen(false)} onSave={range => { if (range.from && range.to && availability.isSuccess) { updateTrip({ checkin: toDateString(range.from), checkout: toDateString(range.to) }); setDatesOpen(false); } }} />}
+    {datesOpen && <EditDatesModal initial={dateRange(checkIn, checkOut)} minNights={property.min_nights} maxNights={property.max_nights} bookedRanges={availability.data ?? []} ready={availability.isSuccess && !availability.isFetching} failed={availability.isError} onRetry={() => void availability.refetch()} onClose={() => setDatesOpen(false)} onSave={range => { if (range.from && range.to && availability.isSuccess) { updateTrip({ checkin: toDateString(range.from), checkout: toDateString(range.to) }); setDatesOpen(false); } }} />}
     {guestsOpen && <EditGuestsModal initial={guests} max={maxGuests} onClose={() => setGuestsOpen(false)} onSave={value => { updateTrip(Object.fromEntries(Object.entries(value).map(([key, count]) => [key, String(count)]))); setGuestsOpen(false); }} />}
     <Modal open={comingSoon !== null} onClose={() => setComingSoon(null)} title={comingSoon ?? "Coming soon"}><h2>Coming soon</h2><p>This demo does not support {comingSoon?.toLowerCase()} yet. You can still complete your demo reservation.</p></Modal>
     {messageOpen && <ComposeMessageModal open listingId={id} hostName={property.host.name} onClose={() => setMessageOpen(false)} />}

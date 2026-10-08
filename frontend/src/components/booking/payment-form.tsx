@@ -50,21 +50,21 @@ export function PaymentForm({ pending, disabled, error, onConfirm, onComingSoon,
       <div className={styles.demoBanner}><Info size={22} aria-hidden="true" /><p><strong>Demo checkout.</strong> No real payment is taken. Do not enter real card details.</p></div>
       <button className={styles.textButton} type="button" onClick={fillDemo} disabled={pending}>Use demo details</button>
       <div className={styles.groupedFields}>
-        <label className={styles.field}><span>Card number</span><input required inputMode="numeric" autoComplete="off" placeholder="4242 4242 4242 4242" pattern="(?:[0-9] ?){16}" maxLength={19} value={card.number} onChange={event => setCard(current => ({ ...current, number: event.target.value.replace(/[^\d ]/g, "") }))} /></label>
+        <label className={styles.field}><span>Card number</span><input required disabled={pending} inputMode="numeric" autoComplete="off" placeholder="4242 4242 4242 4242" pattern="(?:[0-9] ?){16}" maxLength={19} value={card.number} onChange={event => setCard(current => ({ ...current, number: event.target.value.replace(/[^\d ]/g, "") }))} /></label>
         <div className={styles.fieldPair}>
-          <label className={styles.field}><span>Expiration</span><input required inputMode="numeric" autoComplete="off" placeholder="MM/YY" pattern="[0-9]{2}/[0-9]{2}" maxLength={5} value={card.expiration} onChange={event => setCard(current => ({ ...current, expiration: event.target.value }))} /></label>
-          <label className={styles.field}><span>CVV</span><input required inputMode="numeric" autoComplete="off" placeholder="123" pattern="[0-9]{3,4}" maxLength={4} value={card.cvv} onChange={event => setCard(current => ({ ...current, cvv: event.target.value.replace(/\D/g, "") }))} /></label>
+          <label className={styles.field}><span>Expiration</span><input required disabled={pending} inputMode="numeric" autoComplete="off" placeholder="MM/YY" pattern="[0-9]{2}/[0-9]{2}" maxLength={5} value={card.expiration} onChange={event => setCard(current => ({ ...current, expiration: event.target.value }))} /></label>
+          <label className={styles.field}><span>CVV</span><input required disabled={pending} inputMode="numeric" autoComplete="off" placeholder="123" pattern="[0-9]{3,4}" maxLength={4} value={card.cvv} onChange={event => setCard(current => ({ ...current, cvv: event.target.value.replace(/\D/g, "") }))} /></label>
         </div>
       </div>
-      <label className={`${styles.field} ${styles.standaloneField}`}><span>ZIP code</span><input required autoComplete="off" placeholder="560001" maxLength={12} value={card.zip} onChange={event => setCard(current => ({ ...current, zip: event.target.value }))} /></label>
-      <label className={`${styles.field} ${styles.standaloneField}`}><span>Country/region</span><select value={card.country} onChange={event => setCard(current => ({ ...current, country: event.target.value }))}>{["United States", "India", "United Kingdom", "Canada", "Australia"].map(country => <option key={country}>{country}</option>)}</select></label>
+      <label className={`${styles.field} ${styles.standaloneField}`}><span>ZIP code</span><input required disabled={pending} autoComplete="off" placeholder="560001" maxLength={12} value={card.zip} onChange={event => setCard(current => ({ ...current, zip: event.target.value }))} /></label>
+      <label className={`${styles.field} ${styles.standaloneField}`}><span>Country/region</span><select disabled={pending} value={card.country} onChange={event => setCard(current => ({ ...current, country: event.target.value }))}>{["United States", "India", "United Kingdom", "Canada", "Australia"].map(country => <option key={country}>{country}</option>)}</select></label>
       {formatError && <p className={styles.error} role="alert">{formatError}</p>}
       <p className={styles.small}>These fields only validate the demo form. Their values are never sent or saved.</p>
       <div className={styles.alternatives}><button type="button" disabled>PayPal <span>Coming soon</span></button><button type="button" disabled>Google Pay <span>Coming soon</span></button></div>
     </section>
     <section className={styles.section}>
       <h2>Required for your trip</h2>
-      <div className={styles.requiredRow}><strong>Phone number</strong><button type="button" className={styles.outlineButton} onClick={() => onComingSoon("Phone number")}>Add</button></div>
+      <div className={styles.requiredRow}><strong>Phone number</strong><button type="button" className={styles.outlineButton} disabled={pending} onClick={() => onComingSoon("Phone number")}>Add</button></div>
     </section>
     <section className={styles.section}><h2>Cancellation policy</h2><p>{cancellationPolicy}</p></section>
     <section className={styles.section}>
