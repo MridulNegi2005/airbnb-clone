@@ -12,6 +12,7 @@ from app.config import get_settings
 from app.database import SessionLocal
 from app.models import (
     Amenity,
+    BlockedPeriod,
     Booking,
     BookingStatus,
     Category,
@@ -45,6 +46,8 @@ DEMO_UPCOMING = {0, 4, 20}
 DEMO_CANCELLED = {8}
 DEMO_AWAITING_REVIEW = {3}
 DEMO_REVIEWED = {5, 12, 22, 27}
+DEMO_BLOCKED = {1: (70, 74), 6: (60, 63)}
+WEEKLY_DISCOUNTS = (10, 15, 0)
 DEMO_WISHLISTS = {
     "Weekend getaways": (18, 20, 24, 27, 30),
     "Bengaluru stays": (1, 6, 13),
@@ -124,6 +127,9 @@ def _listing(
         bedrooms=seed.bedrooms,
         beds=seed.beds,
         bathrooms=seed.bathrooms,
+        # Weekend getaways ask for two nights, like most hill-station homes on Airbnb.
+        min_nights=1 if seed.city == "Bengaluru" else 2,
+        weekly_discount_percent=WEEKLY_DISCOUNTS[index % len(WEEKLY_DISCOUNTS)],
         images=[
             ListingImage(url=url, position=position)
             for position, url in enumerate(_photo_urls(seed, index))
@@ -187,7 +193,7 @@ def _stays(
 
     cursor = today - timedelta(days=rng.randint(240, 330))
     while True:
-        nights = rng.randint(1, 4)
+        nights = rng.randint(listing.min_nights, 4)
         if cursor + timedelta(days=nights) >= today:
             break
         party = rng.randint(1, listing.max_guests)
@@ -247,6 +253,14 @@ def seed(db: Session, password: str) -> None:
         db.add_all(_stays(rng, index, listing, others, demo))
 
     db.flush()
+    for index, (start, end) in DEMO_BLOCKED.items():
+        db.add(
+            BlockedPeriod(
+                listing_id=listings[index].id,
+                start_date=date.today() + timedelta(days=start),
+                end_date=date.today() + timedelta(days=end),
+            )
+        )
     for name, indexes in DEMO_WISHLISTS.items():
         db.add(
             Wishlist(
