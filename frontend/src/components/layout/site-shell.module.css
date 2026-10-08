@@ -37,3 +37,4 @@
 @media(prefers-reduced-motion:reduce){.homeSearch{transition:none}}
 
 .accountHeader{height:96px;display:flex;align-items:center;justify-content:space-between;padding:0 48px;border-bottom:1px solid var(--divider);background:var(--bg)}.accountHeader :global(.brand-logo){min-width:0}.accountHeader :global(.brand-logo img){filter:grayscale(1) brightness(0)}:global(.dark) .accountHeader :global(.brand-logo img){filter:grayscale(1) brightness(0) invert(1)}.accountHeader :global(.outline-button){border-radius:999px;padding:10px 16px;font-weight:500}@media(max-width:743px){.accountHeader{height:72px;padding-inline:24px}.accountHeader :global(.brand-logo){display:flex}}
+@media(max-width:743px){.wishlistDetailHeader{display:none}}
