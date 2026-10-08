@@ -1,0 +1,15 @@
+.ratingRow { display: flex; align-items: center; justify-content: space-between; gap: 12px; }
+.ratingRow > span { font-size: 14px; font-weight: 500; }
+.overall { flex-direction: column; align-items: flex-start; gap: 12px; }
+.overall > span { font-size: 18px; font-weight: 600; }
+.stars { display: flex; gap: 4px; }
+.stars button { border: 0; border-radius: 50%; background: none; padding: 0; width: 36px; height: 36px; display: grid; place-items: center; color: var(--text); }
+.stars button:hover { background: var(--surface); }
+.overall .stars button { width: 44px; height: 44px; }
+@media (max-width: 743px) {
+  .ratingRow { gap: 8px; flex-direction: column; align-items: flex-start; }
+  .ratingRow > span { font-size: 13px; }
+  .stars { gap: 0; }
+  .stars button { width: 44px; height: 44px; }
+  .overall .stars button { width: 44px; }
+}

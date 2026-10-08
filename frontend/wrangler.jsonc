@@ -1,0 +1,11 @@
+{
+  "$schema": "node_modules/wrangler/config-schema.json",
+  "name": "airbnb-clone",
+  "main": ".open-next/worker.js",
+  "compatibility_date": "2026-10-08",
+  "compatibility_flags": ["nodejs_compat", "global_fetch_strictly_public"],
+  "assets": {"directory": ".open-next/assets", "binding": "ASSETS"},
+  "services": [{"binding": "WORKER_SELF_REFERENCE", "service": "airbnb-clone"}],
+  "routes": [{"pattern": "airbnb.mridulnegi.dev", "custom_domain": true}],
+  "vars": {"NEXT_PUBLIC_API_URL": "https://airbnb-api.mridulnegi.dev"}
+}
