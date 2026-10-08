@@ -8,3 +8,19 @@
 @keyframes wishlistEnter{from{transform:translateY(100%)}to{transform:translateY(0)}}
 @media(max-width:743px){.filters .desktopPreference{display:none}.filters .mobilePreference{display:block;border-color:var(--text)}.mobileDateGuests{display:flex}}
 @media(prefers-reduced-motion:reduce){:global(.modal-backdrop):has(.dialogContent) :global(.modal-panel){animation:none}}
+
+.grid :global(.listing-photo){aspect-ratio:1.06}
+.sharePreference{display:inline-flex;align-items:center;gap:8px}
+.filters .sharePreference{border-color:var(--divider)}
+.sharePreference:disabled{cursor:not-allowed;color:var(--text-secondary)}
+.settingsRows button{padding-block:24px}
+.settingsRows button:disabled{cursor:not-allowed;color:var(--text-secondary)}
+.settingsRows button:disabled:hover{background:none}
+.dialogBody:has(.settingsRows){padding-bottom:0}.unsupportedBadge{font-size:11px;font-weight:400;white-space:nowrap;margin-left:8px}
+.noteButton{display:flex;align-items:center;justify-content:space-between;gap:8px;width:100%;border:0;border-radius:12px;background:var(--surface);color:var(--text-secondary);padding:16px;margin-top:16px;text-align:left;text-decoration:underline;cursor:not-allowed}
+.noteButton span{font-size:11px;text-decoration:none}
+@media(max-width:743px){:global(.modal-panel):has(.dialogContent){border-radius:32px 32px 0 0}:global(.modal-backdrop[data-state="open"]):has(.dialogContent) :global(.modal-panel){animation:wishlistEnter 583.772ms linear(0 0%,.157943 9.09091%,.414669 18.1818%,.63031 27.2727%,.780228 36.3636%,.875101 45.4545%,.931756 54.5455%,.964243 63.6364%,.982305 72.7273%,.992098 81.8182%,.997294 90.9091%,1 100%) both}}
+@media(prefers-reduced-motion:reduce){:global(.modal-backdrop):has(.dialogContent) :global(.modal-panel){animation:none}}
+
+@media(min-width:744px) and (prefers-reduced-motion:no-preference){:global(.modal-backdrop[data-state="open"]):has(.dialogContent) :global(.modal-panel){animation:wishlistEnter 400ms cubic-bezier(.1,.9,.2,1) both,wishlistFade 75ms cubic-bezier(0,0,1,1) both}}
+@keyframes wishlistFade{from{opacity:0}to{opacity:1}}

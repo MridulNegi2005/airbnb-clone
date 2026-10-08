@@ -12,7 +12,7 @@ export function WishlistDialog({ open, title, onClose, onBack, children, footer,
   const button = useRef<HTMLButtonElement>(null);
   useEffect(() => {
     if (!open) return;
-    const frame = requestAnimationFrame(() => button.current?.focus());
+    const frame = requestAnimationFrame(() => button.current?.focus({ preventScroll: true }));
     return () => cancelAnimationFrame(frame);
   }, [open, title]);
   return <Modal open={open} title={title} onClose={onClose} width={width}>
