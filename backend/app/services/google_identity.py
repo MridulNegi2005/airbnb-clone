@@ -14,6 +14,12 @@ class GoogleIdentity:
     email: str
     name: str
     picture: str | None
+    hosted_domain: str | None = None
+
+    @property
+    def vouches_for_email(self) -> bool:
+        # Google only guarantees current ownership for Gmail and for Workspace domains (hd).
+        return self.email.endswith("@gmail.com") or self.hosted_domain is not None
 
 
 @lru_cache
@@ -45,6 +51,7 @@ def verify_google_credential(credential: str, client_id: str) -> GoogleIdentity:
         email=str(claims["email"]).lower(),
         name=str(claims.get("name") or claims["email"].split("@")[0])[:80],
         picture=claims.get("picture"),
+        hosted_domain=claims.get("hd"),
     )
 
 

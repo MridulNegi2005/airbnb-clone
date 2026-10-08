@@ -1,5 +1,5 @@
 from fastapi import APIRouter, Depends, HTTPException, status
-from sqlalchemy import or_, select
+from sqlalchemy import select
 from sqlalchemy.exc import IntegrityError
 
 from app.config import get_settings
@@ -28,7 +28,8 @@ limit_auth_attempts = Depends(limit_by_ip(limit=20, window_seconds=300))
 
 def _auth_response(user: User) -> AuthResponse:
     return AuthResponse(
-        access_token=create_access_token(user.id), user=UserPrivate.model_validate(user)
+        access_token=create_access_token(user.id, user.token_version),
+        user=UserPrivate.model_validate(user),
     )
 
 
@@ -75,30 +76,43 @@ def google_login(payload: GoogleLoginRequest, db: DbSession) -> AuthResponse:
         )
     identity = verify_google_credential(payload.credential, client_id)
 
-    user = db.scalar(
-        select(User).where(or_(User.google_sub == identity.subject, User.email == identity.email))
-    )
+    user = db.scalar(select(User).where(User.google_sub == identity.subject))
     if user is None:
-        user = User(
-            name=identity.name,
-            email=identity.email,
-            google_sub=identity.subject,
-            avatar_url=identity.picture,
-        )
-        db.add(user)
-    elif user.google_sub is None:
-        # Google has verified this email address, so linking it to the account is safe.
-        user.google_sub = identity.subject
-    elif user.google_sub != identity.subject:
-        raise HTTPException(
-            status.HTTP_409_CONFLICT, detail="This email is linked to a different Google account"
-        )
+        user = db.scalar(select(User).where(User.email == identity.email))
+        if user is None:
+            user = User(
+                name=identity.name,
+                email=identity.email,
+                google_sub=identity.subject,
+                avatar_url=identity.picture,
+            )
+            db.add(user)
+        elif user.google_sub is not None:
+            raise HTTPException(
+                status.HTTP_409_CONFLICT,
+                detail="This email is linked to a different Google account",
+            )
+        elif not identity.vouches_for_email:
+            raise HTTPException(
+                status.HTTP_409_CONFLICT,
+                detail="An account with this email already exists. Log in with your password.",
+            )
+        else:
+            _link_google(user, identity.subject)
     try:
         db.commit()
     except IntegrityError:
         db.rollback()
         raise HTTPException(status.HTTP_409_CONFLICT, detail="Please try again") from None
     return _auth_response(user)
+
+
+def _link_google(user: User, subject: str) -> None:
+    # Google just proved this person owns the email. Anyone could have registered the address
+    # first, so drop that password and sign out every existing session.
+    user.google_sub = subject
+    user.password_hash = None
+    user.token_version += 1
 
 
 @router.get("/me", response_model=UserPrivate)

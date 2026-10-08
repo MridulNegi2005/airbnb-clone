@@ -1,6 +1,6 @@
 from datetime import datetime
 
-from sqlalchemy import JSON, CheckConstraint, String, Text
+from sqlalchemy import JSON, CheckConstraint, String, Text, text
 from sqlalchemy.orm import Mapped, mapped_column
 
 from app.database import Base, TimestampMixin
@@ -26,6 +26,8 @@ class User(TimestampMixin, Base):
     lives_in: Mapped[str | None] = mapped_column(String(120))
     is_superhost: Mapped[bool] = mapped_column(default=False)
     identity_verified_at: Mapped[datetime | None]
+    # Every token carries the version it was issued under; bumping it signs out all sessions.
+    token_version: Mapped[int] = mapped_column(default=0, server_default=text("0"))
 
     @property
     def is_identity_verified(self) -> bool:

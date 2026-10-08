@@ -1,6 +1,7 @@
 import hashlib
 import hmac
 import secrets
+from dataclasses import dataclass
 from datetime import UTC, datetime, timedelta
 from functools import cache
 
@@ -33,25 +34,32 @@ def dummy_password_hash() -> str:
     return hash_password(secrets.token_urlsafe(16))
 
 
-def create_access_token(user_id: int) -> str:
+def create_access_token(user_id: int, version: int) -> str:
     settings = get_settings()
     now = datetime.now(UTC)
     payload = {
         "sub": str(user_id),
+        "ver": version,
         "iat": now,
         "exp": now + timedelta(minutes=settings.access_token_ttl_minutes),
     }
     return jwt.encode(payload, settings.secret_key, algorithm=_ALGORITHM)
 
 
-def decode_access_token(token: str) -> int | None:
+@dataclass(frozen=True)
+class AccessToken:
+    user_id: int
+    version: int
+
+
+def decode_access_token(token: str) -> AccessToken | None:
     try:
         payload = jwt.decode(
             token,
             get_settings().secret_key,
             algorithms=[_ALGORITHM],
-            options={"require": ["sub", "exp"]},
+            options={"require": ["sub", "ver", "exp"]},
         )
-        return int(payload["sub"])
-    except (jwt.PyJWTError, ValueError):
+        return AccessToken(int(payload["sub"]), int(payload["ver"]))
+    except (jwt.PyJWTError, ValueError, TypeError):
         return None

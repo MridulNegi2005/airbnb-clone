@@ -19,9 +19,10 @@ def get_current_user(
     db: DbSession,
     credentials: Annotated[HTTPAuthorizationCredentials | None, Depends(_bearer)],
 ) -> User:
-    user_id = decode_access_token(credentials.credentials) if credentials else None
-    user = db.get(User, user_id) if user_id is not None else None
-    if user is None:
+    token = decode_access_token(credentials.credentials) if credentials else None
+    user = db.get(User, token.user_id) if token else None
+    # Bumping the user's token version signs out every token issued before it.
+    if user is None or token is None or token.version != user.token_version:
         raise HTTPException(
             status.HTTP_401_UNAUTHORIZED,
             detail="Not authenticated",
