@@ -242,7 +242,7 @@ airbnb-api.example.com {
 }
 ```
 
-7. Add a nightly backup to cron: `docker exec airbnb-api python -m app.backup`
+7. Run a nightly backup with cron or a systemd timer: `docker exec airbnb-api python -m app.backup`. It keeps the last 7 days.
 
 The container runs as a user without privileges, with a read-only file system and limits on memory and CPU. When it starts, it runs the migrations. It adds the demo data only if the database is empty.
 
