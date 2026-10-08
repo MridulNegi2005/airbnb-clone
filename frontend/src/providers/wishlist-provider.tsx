@@ -1,6 +1,6 @@
 "use client";
 
-import { createContext, useContext, useMemo, useRef, useState, type ReactNode } from "react";
+import { createContext, useContext, useEffect, useMemo, useRef, useState, type ReactNode } from "react";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { Heart, Plus } from "lucide-react";
 import { toast } from "sonner";
@@ -29,6 +29,8 @@ export function WishlistProvider({ children }: { children: ReactNode }) {
   const [name, setName] = useState("");
   const [pending, setPending] = useState(false);
   const [error, setError] = useState("");
+  const nameInput=useRef<HTMLInputElement>(null),createTrigger=useRef<HTMLButtonElement>(null);
+  useEffect(()=>{if(!create||listingId===null)return;const frame=requestAnimationFrame(()=>nameInput.current?.focus({preventScroll:true}));return()=>cancelAnimationFrame(frame);},[create,listingId]);
   const saved = useQuery({ queryKey: queryKeys.savedListings, queryFn: ({ signal }) => getSavedListings(signal), enabled: status === "authenticated" });
   const lists = useQuery({ queryKey: queryKeys.wishlists, queryFn: ({ signal }) => getWishlists(signal), enabled: status === "authenticated" });
   const savedIds = useMemo(() => new Set((saved.data ?? []).map(item => item.listing_id)), [saved.data]);
@@ -135,17 +137,17 @@ export function WishlistProvider({ children }: { children: ReactNode }) {
     <Modal open={listingId !== null && (status === "authenticated" || Boolean(getToken()))} onClose={() => { if (!modalPending.current) setListingId(null); }} title={create ? "Create wishlist" : "Save to wishlist"}>
       {create ? <form className="wishlist-name-form" onSubmit={event => { event.preventDefault(); void createAndSave(); }}>
         <label htmlFor="new-wishlist-name">Name your wishlist</label>
-        <input id="new-wishlist-name" autoFocus maxLength={50} required value={name} onChange={event => setName(event.target.value)} />
+        <input ref={nameInput} id="new-wishlist-name" maxLength={50} required value={name} onChange={event => setName(event.target.value)} />
         <span className="muted small">{name.length}/50</span>
         <GradientButton disabled={disabled || !name.trim()}>{pending ? "Creating…" : "Create"}</GradientButton>
-        <button className="text-button" type="button" disabled={pending} onClick={() => setCreate(false)}>Back to wishlists</button>
+        <button className="text-button" type="button" disabled={pending} onClick={() => {setCreate(false);requestAnimationFrame(()=>createTrigger.current?.focus({preventScroll:true}));}}>Back to wishlists</button>
       </form> : <>
         {lists.isPending ? <p aria-live="polite">Loading your wishlists…</p> : lists.isError ? <div role="alert"><p>{lists.error.message}</p><button className="text-button" disabled={cooldown.blocked} onClick={() => void lists.refetch()}>Try again</button></div> : <div className="wishlist-picker-grid">
           {lists.data?.map(list => <button key={list.id} type="button" disabled={disabled} className="wishlist-picker-card" onClick={() => void choose(list.id, list.name)}>
             <span className="wishlist-cover">{list.cover_image_url ? <AppImage src={list.cover_image_url} alt="" fill sizes="240px" /> : <Heart size={40} />}</span>
             <strong>{list.name}</strong><span className="muted small">{list.item_count} saved</span>
           </button>)}
-          <button className="wishlist-picker-card" type="button" disabled={disabled} onClick={() => { setCreate(true); setError(""); }}><span className="wishlist-cover"><Plus size={40} /></span><strong>Create new wishlist</strong></button>
+          <button ref={createTrigger} className="wishlist-picker-card" type="button" disabled={disabled} onClick={() => { setCreate(true); setError(""); }}><span className="wishlist-cover"><Plus size={40} /></span><strong>Create new wishlist</strong></button>
         </div>}
       </>}
       {error && <p className="error-text" role="alert" style={{ marginTop: 16 }}>{error}</p>}

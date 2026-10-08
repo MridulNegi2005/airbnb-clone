@@ -7,7 +7,7 @@ const stack: symbol[] = [];
 const subscribe = () => () => {};
 let originalOverflow="";
 let originalPadding="";
-export function Modal({open,onClose,title,children,footer,width=568,presentation="default"}: {open:boolean;onClose:()=>void;title:string;children:ReactNode;footer?:ReactNode;width?:number;presentation?:"default"|"reviews"|"calendar"|"filters"|"checkout"}) {
+export function Modal({open,onClose,title,children,footer,width=568,presentation="default"}: {open:boolean;onClose:()=>void;title:string;children:ReactNode;footer?:ReactNode;width?:number;presentation?:"default"|"reviews"|"calendar"|"filters"|"checkout"|"profile"|"message-details"}) {
   const mounted = useSyncExternalStore(subscribe,()=>true,()=>false);
   const [present,setPresent] = useState(open);
   if(open&&!present) setPresent(true);
@@ -37,5 +37,5 @@ export function Modal({open,onClose,title,children,footer,width=568,presentation
     return ()=>{ cancelAnimationFrame(frame); document.removeEventListener("keydown",key); const wasTop=stack[stack.length-1]===layer; const index=stack.indexOf(layer); if(index>=0) stack.splice(index,1); if(!stack.length) {document.documentElement.style.overflow=originalOverflow;document.documentElement.style.paddingRight=originalPadding;} if(wasTop&&opener?.isConnected)opener.focus({preventScroll:true}); };
   },[present,mounted]);
   if(!present || !mounted) return null;
-  return createPortal(<div className="modal-backdrop" data-state={open?"open":"closing"} onMouseDown={event=>{if(event.target===event.currentTarget)onClose();}}><div ref={panel} role="dialog" aria-modal="true" aria-labelledby={id} tabIndex={-1} className="modal-panel" data-presentation={presentation} style={{maxWidth:width}}><header className="modal-header"><button type="button" className="icon-button" aria-label="Close" onClick={onClose}><X size={18}/></button><h2 id={id} className={presentation==="reviews"||presentation==="calendar"?"sr-only":undefined}>{title}</h2></header><div className="modal-body">{children}</div>{footer&&<div className="modal-footer">{footer}</div>}</div></div>,document.body);
+  return createPortal(<div className="modal-backdrop" data-state={open?"open":"closing"} onMouseDown={event=>{if(event.target===event.currentTarget)onClose();}}><div ref={panel} role="dialog" aria-modal="true" aria-labelledby={id} tabIndex={-1} className="modal-panel" data-presentation={presentation} style={{maxWidth:width}}><header className="modal-header"><button type="button" className="icon-button" aria-label="Close" onClick={onClose}><X size={18}/></button><h2 id={id} className={presentation==="reviews"||presentation==="calendar"||presentation==="profile"?"sr-only":undefined}>{title}</h2></header><div className="modal-body">{children}</div>{footer&&<div className="modal-footer">{footer}</div>}</div></div>,document.body);
 }

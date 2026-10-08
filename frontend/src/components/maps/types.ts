@@ -13,4 +13,4 @@ export type HostAddressValue = {
   address: string; neighbourhood: string; city: string; country: string;
   latitude: number | null; longitude: number | null; google_place_id: string | null;
 };
-export type HostAddressPickerProps = { value: HostAddressValue; onChange: (value: HostAddressValue) => void; disabled?: boolean };
+export type HostAddressPickerProps = { value: HostAddressValue; onChange: (value: HostAddressValue) => void; disabled?: boolean; searchOnly?: boolean; placeholder?: string };

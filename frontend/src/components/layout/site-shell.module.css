@@ -60,3 +60,5 @@
 
 .accountHeader{height:96px;display:flex;align-items:center;justify-content:space-between;padding:0 48px;border-bottom:1px solid var(--divider);background:var(--bg)}.accountHeader :global(.brand-logo){min-width:0}.accountHeader :global(.brand-logo img){filter:grayscale(1) brightness(0)}:global(.dark) .accountHeader :global(.brand-logo img){filter:grayscale(1) brightness(0) invert(1)}.accountHeader :global(.outline-button){border-radius:999px;padding:10px 16px;font-weight:500}@media(max-width:743px){.accountHeader{height:72px;padding-inline:24px}.accountHeader :global(.brand-logo){display:flex}}
 @media(max-width:743px){.wishlistDetailHeader{display:none}}
+@media(min-width:744px) and (max-width:1439px){.detailHeader :global(.header-main),.inboxHeader :global(.header-main){height:80px}}
+@media(max-width:743px){.accountHeader{display:none}}
