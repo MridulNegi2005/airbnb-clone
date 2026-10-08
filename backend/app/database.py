@@ -4,7 +4,7 @@ from enum import StrEnum
 from typing import Any
 
 from sqlalchemy import Connection, DateTime, Engine, Enum, MetaData, create_engine, event, func
-from sqlalchemy.engine import Dialect
+from sqlalchemy.engine import URL, Dialect
 from sqlalchemy.orm import DeclarativeBase, Mapped, Session, mapped_column, sessionmaker
 from sqlalchemy.types import TypeDecorator
 
@@ -12,9 +12,6 @@ from app.config import get_settings
 
 
 def _configure_sqlite(dbapi_connection: Any, _connection_record: Any) -> None:
-    # Python's sqlite3 only starts transactions before INSERT/UPDATE/DELETE, so schema changes
-    # would commit one by one. Turn that off and let SQLAlchemy emit BEGIN itself (below).
-    dbapi_connection.isolation_level = None
     for pragma in (
         "foreign_keys = ON",
         "journal_mode = WAL",
@@ -24,15 +21,29 @@ def _configure_sqlite(dbapi_connection: Any, _connection_record: Any) -> None:
         dbapi_connection.execute(f"PRAGMA {pragma}")
 
 
+def _autocommit_driver(dbapi_connection: Any, _connection_record: Any) -> None:
+    # Python's sqlite3 only opens a transaction before INSERT/UPDATE/DELETE, so each schema
+    # change would commit on its own. With this, SQLAlchemy's BEGIN (below) covers all of them.
+    dbapi_connection.isolation_level = None
+
+
 def _begin(connection: Connection) -> None:
     connection.exec_driver_sql("BEGIN")
 
 
-def make_engine(url: str) -> Engine:
-    """SQLite engine where every transaction, including a migration, is atomic."""
+def make_engine(url: str | URL, *, transactional_ddl: bool = False) -> Engine:
+    """SQLite engine with the app's pragmas.
+
+    `transactional_ddl` makes every statement, schema changes included, part of one
+    transaction. Migrations need that to be all-or-nothing. The app must not use it: a
+    transaction that starts at the first read fails its later write at once ("database is
+    locked") whenever another request committed in between, instead of waiting its turn.
+    """
     new_engine = create_engine(url, connect_args={"check_same_thread": False})
     event.listen(new_engine, "connect", _configure_sqlite)
-    event.listen(new_engine, "begin", _begin)
+    if transactional_ddl:
+        event.listen(new_engine, "connect", _autocommit_driver)
+        event.listen(new_engine, "begin", _begin)
     return new_engine
 
 
