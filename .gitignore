@@ -4,6 +4,9 @@
 !.env.example
 secrets/
 *service-account*.json
+# Google OAuth client downloads contain a client secret.
+client_secret*.json
+*oauth*.json
 
 # Python
 __pycache__/
