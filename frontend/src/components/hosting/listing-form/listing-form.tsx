@@ -1,0 +1,70 @@
+'use client';
+import { useEffect, useReducer, useState } from 'react';
+import Link from 'next/link';
+import Image from 'next/image';
+import { useRouter } from 'next/navigation';
+import { useQuery, useQueryClient } from '@tanstack/react-query';
+import { toast } from 'sonner';
+import { LoaderCircle } from 'lucide-react';
+import { ApiError, createListing, deleteListing, getAmenities, getCategories, getHostListing, queryKeys, updateListing } from '@/lib/api';
+import { useAuth } from '@/providers/auth-provider';
+import { GradientButton } from '@/components/ui/gradient-button';
+import { Modal } from '@/components/ui/modal';
+import { FormSteps, Intro } from './form-steps';
+import { emptyDraft, firstInvalid, fromListing, readDraft, reducer, stepError, steps, toInput, type FormState } from './form-model';
+import styles from './listing-form.module.css';
+
+const subtitles: Record<number, string> = { 1: 'Choose the option that best fits your place.', 2: 'Help guests understand the space they’ll be booking.', 3: 'Your street address is shared with guests after they book.', 4: 'Make sure guests know how much room they’ll have.', 5: 'You can add more amenities after you publish.', 6: 'One photo is required. Add at least 5 to help your place stand out.', 7: 'Short titles work best. Have fun with it - you can always change it later.', 8: 'Share what makes your place special.', 9: 'You can change your price any time.', 10: 'Here’s what we’ll show guests. Check that everything looks right.' };
+export function ListingForm({ listingId }: { listingId?: number }) {
+  const { user, status, openAuth } = useAuth();
+  const listing = useQuery({ queryKey: [...queryKeys.hostListing(listingId ?? 0), user?.id], queryFn: ({ signal }) => getHostListing(listingId!, signal), enabled: listingId !== undefined && status === 'authenticated' });
+  const amenities = useQuery({ queryKey: queryKeys.amenities, queryFn: ({ signal }) => getAmenities(signal) });
+  const categories = useQuery({ queryKey: queryKeys.categories, queryFn: ({ signal }) => getCategories(signal) });
+  useEffect(() => { if (status === 'anonymous') openAuth(); }, [status, openAuth]);
+  if (status === 'loading' || (listingId !== undefined && status === 'authenticated' && listing.isPending)) return <FormLoading />;
+  if (!user) return <Gate title="Log in to start hosting" text="Tell guests about your place and get ready to welcome your first booking."><GradientButton onClick={() => openAuth()}>Log in</GradientButton></Gate>;
+  if (listingId !== undefined && listing.isError) return <Gate title={listing.error instanceof ApiError && [403, 404].includes(listing.error.status) ? 'You do not have access to this listing' : 'Could not load this listing'} text={listing.error.message}><button className="outline-button" onClick={() => void listing.refetch()}>Try again</button></Gate>;
+  if (amenities.isPending || categories.isPending) return <FormLoading />;
+  if (amenities.isError || categories.isError) return <Gate title="Could not load listing options" text="Please try again before creating your listing."><button className="outline-button" onClick={() => { void amenities.refetch(); void categories.refetch(); }}>Try again</button></Gate>;
+  return <FormSession key={`${user.id}-${listingId ?? 'new'}`} userId={user.id} listingId={listingId} initial={listing.data ? { step: 1, draft: fromListing(listing.data) } : { step: 0, draft: { ...emptyDraft } }} amenities={amenities.data} categories={categories.data} />;
+}
+function FormSession({ userId, listingId, initial, amenities, categories }: { userId: number; listingId?: number; initial: FormState; amenities: NonNullable<ReturnType<typeof useQuery<Awaited<ReturnType<typeof getAmenities>>>>['data']>; categories: Awaited<ReturnType<typeof getCategories>> }) {
+  const [state, dispatch] = useReducer(reducer, initial);
+  const [direction, setDirection] = useState<'forward' | 'backward'>('forward');
+  const [restore, setRestore] = useState<FormState | null>(null), [ready, setReady] = useState(false), [error, setError] = useState(''), [pending, setPending] = useState(false), [previewDelete, setPreviewDelete] = useState(false), [deleteError, setDeleteError] = useState(''), [photoBusy, setPhotoBusy] = useState(false), [cooldown, setCooldown] = useState(0);
+  const router = useRouter(), client = useQueryClient();
+  const key = `airbnb-clone.listing-draft.${userId}.${listingId ?? 'new'}`, edit = listingId !== undefined;
+  useEffect(() => { const saved = readDraft(key); Promise.resolve().then(() => { setRestore(saved); setReady(true); }); }, [key]);
+  useEffect(() => { if (!ready || restore || JSON.stringify(state) === JSON.stringify(initial)) return; try { sessionStorage.setItem(key, JSON.stringify(state)); } catch { /* Save & exit reports storage failures. */ } }, [state, ready, restore, key, initial]);
+  useEffect(() => { if (cooldown <= 0) return; const timer = setTimeout(() => setCooldown(0), cooldown * 1000); return () => clearTimeout(timer); }, [cooldown]);
+  const patch = (value: Parameters<typeof toInput>[0] extends infer D ? Partial<D> : never) => { dispatch({ type: 'field', patch: value }); setError(''); };
+  function navigate(step: number) { setDirection(step < state.step ? 'backward' : 'forward'); dispatch({ type: 'step', step }); setError(''); }
+  function saveExit() { try { sessionStorage.setItem(key, JSON.stringify(state)); toast('Draft saved'); router.push('/hosting'); } catch { setError('Your browser could not save the draft. Keep this page open and try again.'); } }
+  async function submit() {
+    const invalid = firstInvalid(state.draft); if (invalid !== undefined) { navigate(invalid); setError(stepError(state.draft, invalid) ?? 'Check your listing details.'); return; }
+    if (cooldown > 0 || pending || photoBusy) return;
+    setPending(true); setError('');
+    try { const input = toInput(state.draft); const saved = edit ? await updateListing(listingId, input) : await createListing(input); sessionStorage.removeItem(key); await Promise.all([client.invalidateQueries({ queryKey: queryKeys.hostListings }), client.invalidateQueries({ queryKey: queryKeys.hostListing(saved.id) }), client.invalidateQueries({ queryKey: queryKeys.listing(saved.id) }), client.invalidateQueries({ queryKey: ['listings'] }), client.invalidateQueries({ queryKey: queryKeys.userListings(userId) }), client.invalidateQueries({ queryKey: queryKeys.profile(userId) }), client.invalidateQueries({ queryKey: queryKeys.wishlists })]); toast(edit ? 'Changes saved' : 'Your listing is published'); router.push('/hosting'); }
+    catch (problem) { if (problem instanceof ApiError && problem.status === 429) setCooldown(problem.retryAfterSeconds || 60); if (problem instanceof ApiError && problem.status === 422 && Array.isArray(problem.details)) { const fields: Record<string, number> = { property_type: 1, room_type: 2, address: 3, neighbourhood: 3, city: 3, country: 3, latitude: 3, longitude: 3, max_guests: 4, bedrooms: 4, beds: 4, bathrooms: 4, amenity_ids: 5, category_ids: 5, image_urls: 6, title: 7, description: 8, price_per_night: 9, cleaning_fee: 9 }; const first = problem.details[0] as { loc?: unknown[] }; const field = first?.loc?.find(value => typeof value === 'string' && value in fields); if (typeof field === 'string') navigate(fields[field] ?? state.step); } if (problem instanceof ApiError && problem.status === 422 && !Array.isArray(problem.details)) navigate(3); setError(problem instanceof Error ? problem.message : 'Could not save your listing. Please try again.'); } finally { setPending(false); }
+  }
+  async function confirmDelete() { if (!listingId) return; setPending(true); setDeleteError(''); try { await deleteListing(listingId); sessionStorage.removeItem(key); await Promise.all([client.invalidateQueries({ queryKey: queryKeys.hostListings }), client.invalidateQueries({ queryKey: ['listings'] }), client.invalidateQueries({ queryKey: queryKeys.userListings(userId) }), client.invalidateQueries({ queryKey: queryKeys.profile(userId) }), client.invalidateQueries({ queryKey: queryKeys.wishlists })]); client.removeQueries({ queryKey: queryKeys.listing(listingId) }); client.removeQueries({ queryKey: queryKeys.hostListing(listingId) }); await client.invalidateQueries({ queryKey: queryKeys.savedListings }); toast('Listing removed'); router.push('/hosting'); } catch (problem) { if (problem instanceof ApiError && problem.status === 429) setCooldown(problem.retryAfterSeconds || 60); setDeleteError(problem instanceof Error ? problem.message : 'Could not remove listing.'); } finally { setPending(false); } }
+  const valid = !stepError(state.draft, state.step), stage = state.step <= 4 ? 0 : state.step <= 8 ? 1 : 2;
+  return <div className={styles.shell}><header className={styles.topbar}><Link href="/" aria-label="Airbnb home"><Image src="/airbnb.svg" alt="" className={styles.logo} width={36} height={40} /></Link><div><Link className={styles.pill} href="/coming-soon">Questions?</Link><button className={styles.pill} type="button" disabled={pending || photoBusy} onClick={saveExit}>Save &amp; exit</button></div></header>
+    {edit && <aside className={styles.sidebar}><h2>Your listing</h2><nav aria-label="Listing sections">{steps.slice(1).map((title, index) => <button type="button" key={title} disabled={pending || photoBusy} aria-current={state.step === index + 1 ? 'step' : undefined} onClick={() => navigate(index + 1)}>{['Property type', 'Type of place', 'Location', 'The basics', 'Amenities', 'Photos', 'Title', 'Description', 'Pricing', 'Preview'][index]}</button>)}</nav><button className={styles.deleteLink} type="button" onClick={() => { setDeleteError(''); setPreviewDelete(true); }}>Remove listing</button></aside>}
+    <main id="main-content" className={`${styles.main} ${edit ? styles.editMain : ''}`}>
+      {edit && <label className={styles.mobileSteps}>Edit section<select value={state.step} onChange={event => navigate(Number(event.target.value))}>{steps.slice(1).map((title, index) => <option key={title} value={index + 1}>{title}</option>)}</select></label>}
+      <div className={state.step === 0 ? styles.introBody : styles.body} data-direction={direction} key={state.step}>{state.step === 0 ? <Intro /> : <><h1>{steps[state.step]}</h1><p className={styles.subtitle}>{subtitles[state.step]}</p><FormSteps step={state.step} draft={state.draft} patch={patch} amenities={amenities} categories={categories} onBusyChange={setPhotoBusy} /></>}{error && <p role="alert" className={`error-text ${styles.submitError}`}>{error}</p>}</div>
+    </main>
+    <footer className={styles.footer}><div className={styles.progress} aria-label={`Step ${state.step} of 10`}>{[0, 1, 2].map(segment => <div key={segment}><span style={{ width: `${state.step === 0 ? 0 : segment < stage ? 100 : segment > stage ? 0 : stage === 0 ? state.step / 4 * 100 : stage === 1 ? (state.step - 4) / 4 * 100 : (state.step - 8) / 2 * 100}%` }} /></div>)}</div><div className={styles.footerActions}>{edit ? <Link href="/hosting" className="text-button">Cancel</Link> : state.step > 1 ? <button type="button" className="text-button" disabled={pending || photoBusy} onClick={() => navigate(state.step - 1)}>Back</button> : <span />}{state.step === 0 ? <GradientButton onClick={() => navigate(1)}>Get started</GradientButton> : edit || state.step === 10 ? <GradientButton className={edit ? styles.editSave : undefined} disabled={pending || photoBusy || cooldown > 0 || (edit && firstInvalid(state.draft) !== undefined)} onClick={() => void submit()}>{pending && <LoaderCircle size={18} className={styles.spinner} />}{pending ? 'Saving…' : edit ? 'Save changes' : 'Publish'}</GradientButton> : <button type="button" className="dark-button" disabled={!valid || pending || photoBusy} onClick={() => navigate(state.step + 1)}>Next</button>}</div></footer>
+    <Modal open={restore !== null} onClose={() => { if (restore) { dispatch({ type: 'restore', state: restore }); setRestore(null); } }} title="You have a saved draft"><div className={styles.draftModal}><h2>Pick up where you left off</h2><p>Your saved details are ready to continue.</p><GradientButton onClick={() => { if (restore) dispatch({ type: 'restore', state: restore }); setRestore(null); }}>Continue your draft</GradientButton><button className="text-button" type="button" onClick={() => { sessionStorage.removeItem(key); setRestore(null); }}>Start fresh</button></div></Modal>
+    <Modal open={previewDelete} onClose={() => { if (!pending) setPreviewDelete(false); }} title="Remove this listing?" footer={<><button className="outline-button" disabled={pending || photoBusy} onClick={() => setPreviewDelete(false)}>Cancel</button><button className={styles.dangerButton} disabled={pending || photoBusy || cooldown > 0} onClick={() => void confirmDelete()}>{pending ? 'Removing…' : 'Remove'}</button></>}><div className={styles.draftModal}><p>Guests will no longer see this listing. Past trips and reviews stay.</p>{deleteError && <p role="alert" className="error-text">{deleteError}</p>}</div></Modal>
+  </div>;
+}
+function Gate({ title, text, children }: { title: string; text: string; children: React.ReactNode }) { return <main id="main-content" className={styles.gate}><Link href="/hosting">Back to hosting</Link><h1>{title}</h1><p className="muted">{text}</p>{children}</main>; }
+export function FormLoading() { return <main id="main-content" className={styles.gate} aria-busy="true"><div className="skeleton" style={{ width: '80%', height: 36 }} /><div className="skeleton" style={{ width: '100%', height: 240, marginTop: 32 }} /><p className="muted">Loading your listing…</p></main>; }
+
+
+
+
+
+
