@@ -9,11 +9,10 @@ services:
     environment:
       PORT: "8002"
       DATABASE_URL: sqlite:////app/data/airbnb.db
-      STORAGE_BACKEND: gcs
-      GCS_CREDENTIALS_FILE: /run/secrets/gcs-service-account.json
+      LOCAL_MEDIA_DIR: /app/data/media
+      PUBLIC_BASE_URL: https://airbnb-api.mridulnegi.dev
     volumes:
       - ./data:/app/data
-      - ./secrets/gcs-service-account.json:/run/secrets/gcs-service-account.json:ro
     read_only: true
     tmpfs:
       - /tmp

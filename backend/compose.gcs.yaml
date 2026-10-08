@@ -1,0 +1,9 @@
+# Opt in with: docker compose -f compose.yaml -f compose.gcs.yaml up -d
+# The private credential file must be readable by container UID 10001.
+services:
+  api:
+    environment:
+      STORAGE_BACKEND: gcs
+      GCS_CREDENTIALS_FILE: /run/secrets/gcs-service-account.json
+    volumes:
+      - ./secrets/gcs-service-account.json:/run/secrets/gcs-service-account.json:ro
