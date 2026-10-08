@@ -13,5 +13,5 @@ export function DatePanel({ value, onChange }: { value: DateRange | undefined; o
     update(); media.addEventListener("change", update);
     return () => media.removeEventListener("change", update);
   }, []);
-  return <><DatePicker value={value} onChange={onChange} numberOfMonths={mobile ? 1 : 2} /><div className={styles.dateFooter}><span>Select your travel dates</span><button className={styles.clear} onClick={() => onChange(undefined)}>Clear dates</button></div></>;
+  return <><div className={styles.dateMode}><span>Dates</span></div><div className={styles.dateCalendar}><DatePicker value={value} onChange={onChange} numberOfMonths={mobile ? 12 : 2} hideNavigation={mobile} /></div><div className={styles.dateFooter}><span>Select your travel dates</span><button className={styles.clear} onClick={() => onChange(undefined)}>Clear dates</button></div></>;
 }

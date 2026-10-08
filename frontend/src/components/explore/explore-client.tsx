@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useRef, useState } from "react";
+import { useEffect, useRef, useState, useSyncExternalStore } from "react";
 import { ArrowRight, ChevronLeft, ChevronRight, List, Map } from "lucide-react";
 import dynamic from "next/dynamic";
 import { useListings } from "@/hooks/use-listings";
@@ -9,18 +9,23 @@ import { ListingCard } from "@/components/listings/listing-card";
 const ExploreMap=dynamic(()=>import("@/components/maps").then(module=>module.ExploreMap),{loading:()=> <div role="status" style={{height:"100%",minHeight:400,background:"var(--surface)",display:"grid",placeContent:"center"}}>Loading map…</div>});
 import type { ListingCard as Listing, MapBounds, Page } from "@/types/api";
 import { CategoryBar } from "./category-bar";
-import { ListingSkeleton } from "./listing-skeleton";
+import { HomepageSkeleton, ListingSkeleton } from "./listing-skeleton";
 import styles from "./explore.module.css";
 
 const FiltersModal=dynamic(()=>import("@/components/search/filters-modal").then(module=>module.FiltersModal));
 
+const subscribeDesktop=(listener:()=>void)=>{const media=window.matchMedia("(min-width: 1128px)");media.addEventListener("change",listener);return()=>media.removeEventListener("change",listener);};
+const desktopSnapshot=()=>window.matchMedia("(min-width: 1128px)").matches;
+
 export function ExploreClient({ initialData }: { initialData?: Page<Listing> }) {
   const { params, query, update } = useSearch();
   const homepage = !params.size;
-  const isMap = params.get("view") === "map";
+  const desktopMap=useSyncExternalStore(subscribeDesktop,desktopSnapshot,()=>false);
+  const isMap=params.get("view")==="map"||(desktopMap&&params.get("view")!=="list");
   const listings = useListings(homepage || isMap ? { ...query, page_size: 50 } : query, initialData);
   const { hasNextPage, isFetchingNextPage, fetchNextPage } = listings;
   const [filtersOpen, setFiltersOpen] = useState(false);
+  const [filtersMounted,setFiltersMounted]=useState(false);
   const [hoveredId, setHoveredId] = useState<number | null>(null);
   const sentinel = useRef<HTMLDivElement>(null);
   const all = listings.data?.pages.flatMap((page) => page.items) ?? [];
@@ -37,25 +42,26 @@ export function ExploreClient({ initialData }: { initialData?: Page<Listing> }) 
     observer.observe(sentinel.current);
     return () => observer.disconnect();
   }, [homepage, hasNextPage, isFetchingNextPage, fetchNextPage]);
-  if(homepage) return <section className={styles.homepage} aria-label="Discover homes"><h1 className="sr-only">Airbnb clone homepage</h1>{listings.isPending?<ListingSkeleton count={7}/>:listings.isError&&!listings.data?<div className={styles.state}><h2>Unable to load homes</h2><p>Please try again in a moment.</p><button className={styles.outline} onClick={()=>void listings.refetch()}>Try again</button></div>:all.length===0?<div className={styles.state}><h2>No homes available yet</h2><p>Check back for new places to stay.</p></div>:homeRows(all).map((row,index)=><HomeListingRow key={row.title} title={row.title} items={row.items} priority={index<2} onBrowse={()=>{const cities=new Set(row.items.map(item=>item.city));if(cities.size===1)update({location:row.items[0]?.city,search:"1"},true);else update({search:"1",sw_lat:String(Math.min(...row.items.map(item=>item.latitude))-.015),sw_lng:String(Math.min(...row.items.map(item=>item.longitude))-.015),ne_lat:String(Math.max(...row.items.map(item=>item.latitude))+.015),ne_lng:String(Math.max(...row.items.map(item=>item.longitude))+.015)},true);}}/>)}</section>;
+  if(homepage) return <section className={styles.homepage} aria-label="Discover homes"><h1 className="sr-only">Airbnb clone homepage</h1>{listings.isPending?<HomepageSkeleton/>:listings.isError&&!listings.data?<div className={styles.state}><h2>Unable to load homes</h2><p>Please try again in a moment.</p><button className={styles.outline} onClick={()=>void listings.refetch()}>Try again</button></div>:all.length===0?<div className={styles.state}><h2>No homes available yet</h2><p>Check back for new places to stay.</p></div>:homeRows(all).map((row,index)=><HomeListingRow key={row.title} title={row.title} items={row.items} priority={index<2} onBrowse={()=>{const cities=new Set(row.items.map(item=>item.city));if(cities.size===1)update({location:row.items[0]?.city,search:"1",view:window.innerWidth>=1128?"map":undefined},true);else update({search:"1",view:window.innerWidth>=1128?"map":undefined,sw_lat:String(Math.min(...row.items.map(item=>item.latitude))-.015),sw_lng:String(Math.min(...row.items.map(item=>item.longitude))-.015),ne_lat:String(Math.max(...row.items.map(item=>item.latitude))+.015),ne_lng:String(Math.max(...row.items.map(item=>item.longitude))+.015)},true);}}/>)}</section>;
   return <>
-    <CategoryBar onFilters={() => setFiltersOpen(true)} />
-    <section className={`${styles.page} ${isMap ? styles.mapView : ""}`} >
+    <CategoryBar onFilters={() => {setFiltersMounted(true);setFiltersOpen(true);}} />
+    <section className={`${styles.page} ${isMap ? styles.mapView : !params.get("view")?styles.autoMapView:""}`} >
       <h1 className="sr-only">Find your next stay</h1>
       <section className={styles.listPane} aria-label="Available stays">
       <h2 className="sr-only">Places to stay</h2>
       {listings.isPending ? <ListingSkeleton /> : listings.isError && !listings.data ? <div className={styles.state}><h2 className="text-[22px] font-semibold">Something went wrong</h2><p>We couldn&apos;t load the stays. Please try again.</p><button className={styles.outline} onClick={() => void listings.refetch()}>Try again</button></div> : all.length === 0 ? <div className={styles.state}><h2 className="text-[22px] font-semibold">No exact matches</h2><p>Try changing or removing some of your filters or adjusting your search area.</p><button className={styles.outline} onClick={() => update({}, true)}>Remove all filters</button></div> : <>
         {params.toString() && <p className={styles.count}>{listings.data?.pages[0]?.total} stays{params.get("location") ? ` in ${params.get("location")}` : ""}</p>}
-        <div className={styles.grid}>{all.map((listing, index) => <div key={listing.id} className={hoveredId === listing.id ? styles.hoveredCard : undefined} onMouseEnter={() => setHoveredId(listing.id)} onMouseLeave={() => setHoveredId(null)}><ListingCard listing={listing} priority={index===0&&!isMap} imageSizes={isMap?"(min-width:1640px) calc(20vw - 39px), (min-width:1128px) calc(30vw - 46px), calc(100vw - 48px)":undefined} searchParams={params.toString()} /></div>)}</div>
+        <div className={styles.grid}>{all.map((listing, index) => <div key={listing.id} className={hoveredId === listing.id ? styles.hoveredCard : undefined} onMouseEnter={() => setHoveredId(listing.id)} onMouseLeave={() => setHoveredId(null)}><ListingCard listing={listing} priority={index<2} imageSizes={isMap?"(min-width:1640px) calc((100vw - 192px) / 6), (min-width:1128px) calc((100vw - 172px) / 4), (min-width:744px) calc((100vw - 96px) / 2), calc(100vw - 48px)":undefined} searchParams={params.toString()} /></div>)}</div>
         {listings.isFetchingNextPage && <div className="mt-10"><ListingSkeleton count={4} /></div>}
         {listings.hasNextPage && <div ref={sentinel} className={styles.more}><button className={styles.darkButton} disabled={listings.isFetchingNextPage} onClick={() => void listings.fetchNextPage()}>{listings.isFetchingNextPage ? "Loading stays..." : "Show more"}</button></div>}
         {listings.isFetchNextPageError && <p className="text-center text-error">More stays could not be loaded. Use Show more to try again.</p>}
       </>}
       </section>
+      {!isMap&&!params.get("view")&&<aside className={`${styles.mapPane} ${styles.mapPlaceholder}`} aria-label="Map of available stays"><div role="status">Loading map…</div></aside>}
       {isMap && <aside className={styles.mapPane} aria-label="Map of available stays"><ExploreMap listings={all} bounds={bounds} onBoundsChange={searchBounds} hoveredListingId={hoveredId} onHoverListing={setHoveredId} searchParams={params.toString()} /></aside>}
     </section>
-    {all.length > 0 && <button className={styles.mapToggle} onClick={() => update({ view: isMap ? undefined : "map" })}>{isMap ? "Show list" : "Show map"}{isMap ? <List size={16} /> : <Map size={16} />}</button>}
-    {filtersOpen&&<FiltersModal open onClose={() => setFiltersOpen(false)} />}
+    {all.length > 0 && <button className={styles.mapToggle} onClick={() => update({ view: isMap ? "list" : "map" })}>{isMap ? "Show list" : "Show map"}{isMap ? <List size={16} /> : <Map size={16} />}</button>}
+    {filtersMounted&&<FiltersModal open={filtersOpen} onClose={() => setFiltersOpen(false)} prices={all.map(listing=>listing.price_per_night)} />}
   </>;
 }
 
@@ -78,6 +84,7 @@ function homeRows(listings: Listing[]) {
 
 function HomeListingRow({ title, items, priority, onBrowse }: { title: string; items: Listing[]; priority: boolean; onBrowse: () => void }) {
   const track = useRef<HTMLDivElement>(null);
+  const visibleItems=items.slice(0,8);
   const [position, setPosition] = useState({ start: true, end: items.length <= 1 });
   function measure() {
     const element=track.current;
@@ -90,6 +97,6 @@ function HomeListingRow({ title, items, priority, onBrowse }: { title: string; i
   }
   return <section className={styles.homeRow} aria-label={title}>
     <div className={styles.rowHeading}><h2><button type="button" onClick={onBrowse}>{title}<span><ArrowRight size={14}/></span></button></h2><div className={styles.rowControls}><button type="button" aria-label={`Previous homes: ${title}`} disabled={position.start} onClick={()=>move(-1)}><ChevronLeft size={16}/></button><button type="button" aria-label={`Next homes: ${title}`} disabled={position.end} onClick={()=>move(1)}><ChevronRight size={16}/></button></div></div>
-    <div ref={track} className={styles.homeTrack} onScroll={measure}>{items.map((listing,index)=><ListingCard key={listing.id} listing={listing} compact priority={priority&&index<2} imageSizes="(max-width:549px) 42vw, (max-width:743px) 29vw, (max-width:949px) calc((100vw - 148px) / 4), (max-width:1127px) calc((100vw - 180px) / 5), (max-width:1439px) calc((89vw - 60px) / 6), calc((89vw - 72px) / 7)"/>)}</div>
+    <div ref={track} className={styles.homeTrack} onScroll={measure}>{visibleItems.map((listing,index)=><ListingCard key={listing.id} listing={listing} compact priority={priority&&index<2} imageSizes="(max-width:549px) 42vw, (max-width:743px) 29vw, (max-width:949px) calc((100vw - 148px) / 4), (max-width:1127px) calc((100vw - 180px) / 5), (max-width:1439px) calc((89vw - 60px) / 6), (min-width:1900px) calc((89vw - 96px) / 9), calc((89vw - 72px) / 7)"/>)}<button type="button" className={styles.seeAll} onClick={onBrowse} aria-label={`See all: ${title}`}><span className={styles.seeAllImage}><span><ArrowRight size={22}/></span></span><strong>See all</strong></button></div>
   </section>;
 }

@@ -25,7 +25,7 @@ export function ListingCard({listing,priority=false,searchParams="",imageSizes=g
     <button className="card-heart" type="button" aria-label={saved?"Remove from wishlist":"Add to wishlist"} aria-pressed={saved} disabled={isBlocked} onClick={()=>toggle(listing.id)}><Heart size={24} fill={saved?"var(--brand)":"rgba(0,0,0,.5)"} stroke="white" strokeWidth={2}/></button>
   </>;
   const compactTitle = `${listing.room_type === "private_room" ? "Room" : listing.room_type === "shared_room" ? "Shared room" : {apartment:"Flat",house:"Home",guesthouse:"Guesthouse",hotel:"Hotel"}[listing.property_type]} in ${listing.city}`;
-  return <article className={`listing-card ${compact?styles.compact:""}`}>
+  return <article className={`listing-card ${compact?styles.compact:styles.full}`}>
     <div className="listing-photo">
       {compact?<>
         <Link href={href} aria-label={`View ${listing.title}`} className="listing-photo-link">
@@ -35,7 +35,7 @@ export function ListingCard({listing,priority=false,searchParams="",imageSizes=g
       </>:<ListingPhotoCarousel listing={listing} href={href} priority={priority} imageSizes={imageSizes}>{overlays}</ListingPhotoCarousel>}
     </div>
     <Link href={href} className="listing-copy">
-      <div className="listing-title-row"><h3>{compact?compactTitle:`${listing.neighbourhood}, ${listing.city}`}</h3>{!compact&&<span><Star size={12} fill="currentColor"/>{formatRating(listing.rating)}</span>}</div>
+      <div className="listing-title-row"><h3>{compact?compactTitle:`${listing.neighbourhood}, ${listing.city}`}</h3>{!compact&&<span><Star size={12} fill="currentColor"/>{formatRating(listing.rating)}{listing.review_count>0&&<span>({listing.review_count})</span>}</span>}</div>
       {!compact&&<p className="muted listing-subtitle">{listing.title}</p>}
       {checkIn&&checkOut&&<p className="muted">{formatDateRange(checkIn,checkOut)}</p>}
       <p className="listing-price">{compact?<>{formatPrice(listing.price_per_night)} for 1 night · <Star size={9} fill="currentColor"/>{formatRating(listing.rating)}</>:<><strong>{formatPrice(listing.price_per_night)}</strong> night</>}</p>
@@ -51,6 +51,7 @@ function ListingPhotoCarousel({listing,href,priority,imageSizes,children}: {list
   const [visited,setVisited]=useState(()=>new Set([0]));
   const track=useRef<HTMLDivElement>(null);
   const activeIndex=Math.min(index,Math.max(0,listing.image_urls.length-1));
+  const dotStart=Math.max(0,Math.min(activeIndex-2,listing.image_urls.length-5));
   function select(next:number) {
     if(!Number.isFinite(next))return;
     const bounded=Math.max(0,Math.min(next,listing.image_urls.length-1));
@@ -72,6 +73,6 @@ function ListingPhotoCarousel({listing,href,priority,imageSizes,children}: {list
     {children}
     {activeIndex>0&&<button className="carousel-arrow previous" type="button" aria-label="Previous photo" onClick={()=>move(activeIndex-1)}><ChevronLeft size={16}/></button>}
     {activeIndex<listing.image_urls.length-1&&<button className="carousel-arrow next" type="button" aria-label="Next photo" onClick={()=>move(activeIndex+1)}><ChevronRight size={16}/></button>}
-    {listing.image_urls.length>1&&<div className="carousel-dots" aria-hidden="true">{listing.image_urls.slice(0,5).map((_,i)=><span key={i} className={i===Math.min(activeIndex,4)?"active":""}/>)}</div>}
+    {listing.image_urls.length>1&&<div className={`carousel-dots ${styles.photoDots}`} aria-hidden="true">{listing.image_urls.slice(dotStart,dotStart+5).map((_,i)=>{const photo=dotStart+i;const edge=(i===0&&dotStart>0)||(i===4&&photo<listing.image_urls.length-1);return <span key={photo} className={photo===activeIndex?"active":""} style={{scale:edge?0.67:1}}/>;})}</div>}
   </>;
 }
