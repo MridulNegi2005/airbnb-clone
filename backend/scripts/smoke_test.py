@@ -44,6 +44,8 @@ class Client:
     ) -> Any:
         data = raw if raw is not None else (json.dumps(body).encode() if body is not None else None)
         request = urllib.request.Request(self.base_url + path, data=data, method=method)
+        # Cloudflare's browser integrity check rejects Python's default User-Agent.
+        request.add_header("User-Agent", "airbnb-clone-smoke-test/1.0")
         if body is not None:
             request.add_header("Content-Type", "application/json")
         if content_type:
