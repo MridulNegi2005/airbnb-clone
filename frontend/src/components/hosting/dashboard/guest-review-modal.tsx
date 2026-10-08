@@ -4,14 +4,13 @@ import { useMutation, useQueryClient } from "@tanstack/react-query";
 import { toast } from "sonner";
 import { createGuestReview, queryKeys } from "@/lib/api";
 import type { HostBooking, GuestReviewInput } from "@/types/api";
-import { useApiCooldown } from "@/hooks/use-api-cooldown";
 import { Modal } from "@/components/ui/modal";
 import { AppImage } from "@/components/ui/app-image";
 import { StarRating } from "@/components/ui/star-rating";
 import { GradientButton } from "@/components/ui/gradient-button";
 
-export function GuestReviewModal({booking,onClose}:{booking:HostBooking;onClose:()=>void}){
-  const [rating,setRating]=useState(0),[comment,setComment]=useState("");const client=useQueryClient();const cooldown=useApiCooldown();
+export function GuestReviewModal({booking,onClose,cooldown}:{booking:HostBooking;onClose:()=>void;cooldown:{blocked:boolean;record:(error:unknown)=>void}}){
+  const [rating,setRating]=useState(0),[comment,setComment]=useState("");const client=useQueryClient();
   const mutation=useMutation({mutationFn:(body:GuestReviewInput)=>createGuestReview(booking.id,body),onError:reason=>cooldown.record(reason),onSuccess:async()=>{
     await Promise.all([client.invalidateQueries({queryKey:queryKeys.hostBookings}),client.invalidateQueries({queryKey:queryKeys.profile(booking.guest.id)}),client.invalidateQueries({queryKey:["user-reviews",booking.guest.id]})]);toast.success("Thanks for reviewing your guest");onClose();
   }});

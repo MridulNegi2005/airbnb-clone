@@ -108,6 +108,7 @@ export function HostDashboard() {
   const { status, user, openAuth } = useAuth();
   const client = useQueryClient();
   const removalCooldown = useApiCooldown();
+  const guestReviewCooldown = useApiCooldown();
   const [tab, setTab] = useState<ReservationTab>("upcoming"), [listingId, setListingId] = useState<number | undefined>();
   const [reviewGuest,setReviewGuest] = useState<HostBooking|null>(null);
   const [deleting, setDeleting] = useState<HostListing | null>(null);
@@ -157,7 +158,7 @@ export function HostDashboard() {
       </div>
     </section>
     <section id="host-listings" className={styles.listings} aria-labelledby="listings-heading"><div className={styles.sectionHeader}><h2 id="listings-heading">Your listings <span className={styles.listingCount}>({listings.data.length})</span></h2><Link href="/hosting/listings/new" className="outline-button"><Plus size={18} aria-hidden="true" />Create listing</Link></div><div className={styles.listingGrid}>{listings.data.map(listing => <ListingCard key={listing.id} listing={listing} onDelete={askDelete} />)}</div></section>
-    {reviewGuest&&<GuestReviewModal key={reviewGuest.id} booking={reviewGuest} onClose={()=>setReviewGuest(null)}/>}
+    {reviewGuest&&<GuestReviewModal key={reviewGuest.id} booking={reviewGuest} cooldown={guestReviewCooldown} onClose={()=>setReviewGuest(null)}/>}
     <Modal open={deleting !== null} onClose={closeDelete} title="Remove this listing?" footer={<div className={styles.confirmActions}><button className="text-button" type="button" disabled={deletion.isPending} onClick={closeDelete}>Cancel</button><button className={styles.dangerButton} type="button" disabled={deletion.isPending || removalCooldown.blocked} onClick={() => { if (deleting && !deletion.isPending && !removalCooldown.blocked) deletion.mutate(deleting.id); }}>{deletion.isPending ? <><LoaderCircle size={18} className={styles.spin} aria-hidden="true" />Removing…</> : "Remove listing"}</button></div>}>
       <div className={styles.deleteBody}><h3>{deleting?.title}</h3><p>Guests will no longer see this listing. Past trips and reviews stay.</p>{deleting && deleting.upcoming_booking_count > 0 && <p>This listing has {plural(deleting.upcoming_booking_count, "upcoming reservation")}. Complete or cancel upcoming reservations before removing this listing.</p>}{deletion.isError && <p className="error-text" role="alert">{deletion.error.message}</p>}</div>
     </Modal>
