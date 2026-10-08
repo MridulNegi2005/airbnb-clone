@@ -1,5 +1,6 @@
 import argparse
 import random
+import secrets
 from datetime import UTC, date, datetime, time, timedelta
 from pathlib import Path
 
@@ -38,10 +39,12 @@ from app.seed_data import (
     UNSPLASH,
 )
 from app.services.bookings import price_stay
+from app.services.listings import approximate_location
 
 ALEMBIC_INI = Path(__file__).resolve().parent.parent / "alembic.ini"
 
 # Listing indexes where the demo guest (GUESTS[0]) gets a specific trip, so every state shows.
+DEMO_LOGIN_EMAILS = {"rohan@example.com", "kavya@example.com"}
 DEMO_UPCOMING = {0, 4, 20}
 DEMO_CANCELLED = {8}
 DEMO_AWAITING_REVIEW = {3}
@@ -109,6 +112,7 @@ def _listing(
     amenities: dict[str, Amenity],
     categories: dict[str, Category],
 ) -> Listing:
+    approx_latitude, approx_longitude = approximate_location(seed.latitude, seed.longitude)
     return Listing(
         host=host,
         title=seed.title,
@@ -121,6 +125,8 @@ def _listing(
         country="India",
         latitude=seed.latitude,
         longitude=seed.longitude,
+        approx_latitude=approx_latitude,
+        approx_longitude=approx_longitude,
         price_per_night=seed.price,
         cleaning_fee=seed.cleaning_fee,
         max_guests=seed.guests,
@@ -148,6 +154,7 @@ def _booking(listing: Listing, guest: User, check_in: date, nights: int, guests:
         check_out=check_in + timedelta(days=nights),
         guests=guests,
         nightly_rate=price.nightly_rate,
+        discount=price.discount,
         cleaning_fee=price.cleaning_fee,
         service_fee=price.service_fee,
         total=price.total,
@@ -227,15 +234,20 @@ def _stays(
 def seed(db: Session, password: str) -> None:
     rng = random.Random(2024)
     now = datetime.now(UTC)
-    # One shared hash keeps seeding fast; every demo account uses the same password anyway.
-    password_hash = hash_password(password)
+    # Only the documented demo accounts get the shared password. The other seeded emails are
+    # public in this repo, so they get a random password nobody knows.
+    demo_hash = hash_password(password)
+    locked_hash = hash_password(secrets.token_urlsafe(32))
+
+    def password_for(person: PersonSeed) -> str:
+        return demo_hash if person.email in DEMO_LOGIN_EMAILS else locked_hash
 
     hosts = [
-        _user(person, password_hash, now - timedelta(days=rng.randint(700, 3000)))
+        _user(person, password_for(person), now - timedelta(days=rng.randint(700, 3000)))
         for person in HOSTS
     ]
     guests = [
-        _user(person, password_hash, now - timedelta(days=rng.randint(60, 900)))
+        _user(person, password_for(person), now - timedelta(days=rng.randint(60, 900)))
         for person in GUESTS
     ]
     demo, others = guests[0], guests[1:]
