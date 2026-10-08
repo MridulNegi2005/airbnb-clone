@@ -10,3 +10,5 @@ testpaths = ["tests"]
 
 [tool.ruff.lint.per-file-ignores]
 "tests/conftest.py" = ["E402"]
+# Alembic writes these files; long generated lines are fine there.
+"migrations/versions/*" = ["E501"]
