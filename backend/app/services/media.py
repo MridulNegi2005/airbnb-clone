@@ -18,6 +18,8 @@ def create_upload(db: Session, user: User, raw: bytes) -> Upload:
             status.HTTP_403_FORBIDDEN, detail="You have reached the photo upload limit"
         )
 
+    # Hand the connection back to the pool while the image is processed, which takes seconds.
+    db.commit()
     image = process_image(raw, settings.max_image_dimension)
     key = f"uploads/{user.id}/{secrets.token_hex(16)}.webp"
     url = get_storage().save(key, image.data, image.content_type)

@@ -6,7 +6,7 @@ from io import BytesIO
 from fastapi import HTTPException, status
 from PIL import Image, ImageOps, UnidentifiedImageError
 
-_ACCEPTED_FORMATS = {"JPEG", "PNG", "WEBP"}
+_ACCEPTED_FORMATS = ("JPEG", "PNG", "WEBP")
 _WEBP_QUALITY = 82
 
 # 16 megapixels (a 4000 x 4000 photo) is far more than a 2048 px output needs. A small,
@@ -15,7 +15,10 @@ _WEBP_QUALITY = 82
 Image.MAX_IMAGE_PIXELS = 16_000_000
 
 # Decoding is memory-heavy; one image at a time keeps the container inside its memory limit.
+# Callers wait briefly for the slot and otherwise get a 503, so a burst of uploads cannot
+# tie up every worker thread.
 _decode_slot = threading.Semaphore(1)
+_SLOT_WAIT_SECONDS = 3
 
 
 @dataclass(frozen=True)
@@ -32,12 +35,23 @@ def process_image(raw: bytes, max_dimension: int) -> ProcessedImage:
     Re-encoding drops every metadata block, so EXIF data such as GPS coordinates never
     reaches storage, and only real pixels from a known format are ever served.
     """
-    with _decode_slot, warnings.catch_warnings():
+    if not _decode_slot.acquire(timeout=_SLOT_WAIT_SECONDS):
+        raise HTTPException(
+            status.HTTP_503_SERVICE_UNAVAILABLE,
+            detail="We are busy processing photos. Try again in a few seconds.",
+            headers={"Retry-After": "5"},
+        )
+    try:
+        return _process(raw, max_dimension)
+    finally:
+        _decode_slot.release()
+
+
+def _process(raw: bytes, max_dimension: int) -> ProcessedImage:
+    with warnings.catch_warnings():
         warnings.simplefilter("error", Image.DecompressionBombWarning)
         try:
-            with Image.open(BytesIO(raw)) as source:
-                if source.format not in _ACCEPTED_FORMATS:
-                    raise _unsupported()
+            with Image.open(BytesIO(raw), formats=_ACCEPTED_FORMATS) as source:
                 # Let JPEGs decode at reduced scale, and shrink before rotating, so no
                 # full-size copy of the image is ever made.
                 source.draft("RGB", (max_dimension, max_dimension))

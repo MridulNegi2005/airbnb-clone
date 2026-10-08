@@ -20,6 +20,6 @@ services:
       - ALL
     security_opt:
       - no-new-privileges:true
-    mem_limit: 512m
+    mem_limit: 768m
     cpus: 1.0
     restart: unless-stopped
