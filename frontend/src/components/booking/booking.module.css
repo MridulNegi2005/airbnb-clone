@@ -1,0 +1,108 @@
+.page { max-width:1140px; margin:0 auto; padding:32px 80px 80px; color:var(--text); }
+.titleRow { display:flex; align-items:center; gap:24px; margin-bottom:14px; }
+.titleRow h1,.page>h1 { font-size:32px; line-height:36px; font-weight:600; letter-spacing:-.02em; }
+.backButton { display:grid; place-items:center; width:44px; height:44px; margin-left:-68px; border-radius:50%; }
+.backButton:hover { background:var(--surface); }
+.layout { display:grid; grid-template-columns:minmax(0,1.4fr) minmax(0,1fr); gap:8%; align-items:start; width:calc(100% - 14px); }
+.main { min-width:0; }
+.section { padding:24px; border:1px solid var(--line); border-radius:24px; margin-bottom:24px; }
+.section h2,.priceDetails h2 { font-size:18px; line-height:24px; font-weight:600; letter-spacing:-.02em; margin:0 0 16px; }
+.section p { margin-bottom:16px; }
+.tripRow { display:flex; justify-content:space-between; align-items:flex-start; gap:16px; margin-top:24px; }
+.tripRow h3 { font-size:16px; font-weight:600; margin:0 0 4px; }
+.tripRow p { margin:0; }
+.textButton { background:none; border:0; padding:0; font-size:16px; font-weight:600; text-decoration:underline; cursor:pointer; min-height:24px; color:var(--text); }
+.darkButton,.outlineButton { display:inline-flex; justify-content:center; align-items:center; padding:13px 23px; min-height:48px; border:1px solid var(--text); border-radius:8px; color:var(--bg); background:var(--text); font-weight:600; white-space:nowrap; cursor:pointer; }
+.outlineButton { background:var(--bg); color:var(--text); }
+.darkButton:disabled { opacity:.4; cursor:not-allowed; }
+.headingRow { display:flex; align-items:baseline; justify-content:space-between; gap:12px; }
+.summary { position:sticky; top:104px; border:1px solid var(--line); border-radius:24px; padding:24px; min-width:0; }
+.property { display:flex; gap:12px; align-items:center; padding-bottom:24px; border-bottom:1px solid var(--divider); }
+.propertyPhoto { position:relative; width:96px; height:96px; flex-shrink:0; overflow:hidden; border-radius:8px; background:var(--surface); }
+.propertyPhoto img { object-fit:cover; }
+.propertyPhoto span { font-size:12px; padding:12px; display:block; }
+.propertyText { font-size:14px; line-height:20px; min-width:0; }
+.propertyText p { margin:0 0 5px; }
+.propertyText p:not(.small) { font-size:18px; line-height:23px; font-weight:600; }
+.property { padding-bottom:0; border:0; }
+.policy { font-size:14px; line-height:20px; padding:20px 0 16px; margin:0; border-bottom:1px solid var(--divider); }
+.policy .textButton { font-size:14px; font-weight:400; }
+.tripTypes { display:grid; }
+.tripType { display:flex; align-items:center; gap:8px; min-height:50px; cursor:pointer; }
+.tripType + .tripType { border-top:1px solid var(--divider); padding-top:12px; margin-top:8px; }
+.tripTypeIcon { width:40px; height:40px; display:grid; place-items:center; background:var(--surface); border-radius:8px; flex-shrink:0; }
+.tripType strong { font-size:16px; font-weight:500; }
+.tripType small { display:block; color:var(--text-secondary); font-size:14px; line-height:20px; margin-top:2px; }
+.tripType input { margin-left:auto; width:22px; height:22px; flex-shrink:0; accent-color:var(--text); cursor:pointer; }
+.hostMessageDescription { color:var(--text-secondary); font-size:14px; line-height:18px; }
+.hostMessageRow { display:flex; align-items:center; gap:16px; margin:16px 0; }
+.hostMessageRow small { display:block; font-size:14px; line-height:20px; color:var(--text-secondary); margin-top:2px; }
+.hostAvatar,.hostInitial { width:40px; height:40px; border-radius:50%; object-fit:cover; }
+.hostInitial { background:var(--surface); display:grid; place-items:center; }
+.messageButton { width:100%; min-height:84px; padding:12px 16px; background:transparent; border:1px solid var(--line-strong); border-radius:12px; color:var(--text-secondary); font-size:16px; text-align:left; }
+.messageButton:hover { border-color:var(--text); background:var(--surface); }
+.tripDetails { padding-bottom:20px; border-bottom:1px solid var(--divider); }
+.tripDetails .tripRow { padding-top:16px; margin-top:0; align-items:center; }
+.tripDetails .tripRow + .tripRow { margin-top:16px; border-top:1px solid var(--divider); }
+.tripDetails .tripRow h3 { font-size:14px; }
+.tripDetails .tripRow p { font-size:14px; line-height:20px; }
+.changeButton { border:0; border-radius:8px; background:var(--surface); padding:8px 14px; min-height:32px; font-size:12px; font-weight:600; color:var(--text); }
+.small { font-size:12px; line-height:18px; color:var(--text-secondary); }
+.secondary { color:var(--text-secondary); font-size:14px; line-height:22px; }
+.rating { display:flex; align-items:center; gap:4px; font-size:12px; line-height:18px; margin-top:4px; }
+.priceDetails { padding-top:24px; }
+.priceRow { display:flex; justify-content:space-between; align-items:flex-start; gap:16px; font-size:14px; line-height:22px; margin:12px 0; }
+.priceRow>span:last-child { white-space:nowrap; }
+.total { border-top:1px solid var(--divider); padding-top:24px; margin-top:24px; margin-bottom:0; font-weight:600; }
+.demoBanner { display:flex; align-items:flex-start; gap:12px; border-radius:12px; padding:16px; background:var(--surface); font-size:14px; line-height:22px; margin-bottom:16px; }
+.demoBanner svg { flex-shrink:0; margin-top:3px; }
+.demoBanner p { margin:0; }
+.groupedFields { margin-top:24px; border:1px solid var(--line-strong); border-radius:8px; overflow:hidden; }
+.field { display:flex; flex-direction:column; gap:3px; position:relative; min-height:58px; padding:8px 12px; }
+.field span { font-size:12px; line-height:16px; color:var(--text-secondary); }
+.field input,.field select { width:100%; border:0; outline:0; color:var(--text); background:transparent; font-size:16px; line-height:24px; padding:0; min-width:0; }
+.field select option { background:var(--bg); color:var(--text); }
+.field input::placeholder { color:var(--text-secondary); opacity:1; }
+.field:focus-within { box-shadow:inset 0 0 0 2px var(--text); border-radius:8px; }
+.fieldPair { display:grid; grid-template-columns:1fr 1fr; border-top:1px solid var(--line-strong); }
+.fieldPair>.field:first-child { border-right:1px solid var(--line-strong); }
+.standaloneField { border:1px solid var(--line-strong); border-radius:8px; margin-top:16px; }
+.paymentForm .small { margin-top:12px; }
+.alternatives { display:flex; flex-direction:column; gap:8px; margin-top:24px; }
+.alternatives button { display:flex; justify-content:space-between; align-items:center; padding:12px 16px; border:1px solid var(--line); border-radius:8px; font-weight:600; text-align:left; color:var(--text-secondary); cursor:not-allowed; }
+.alternatives span { font-size:12px; font-weight:400; }
+.requiredRow { display:flex; justify-content:space-between; align-items:center; margin-top:20px; gap:16px; }
+.legal { font-size:12px; line-height:18px; color:var(--text-secondary); padding-top:8px; }
+.confirmButton { min-width:200px; height:56px; margin-top:8px; }
+.error { color:var(--error); font-size:14px; line-height:22px; margin:16px 0; }
+.error .textButton { color:inherit; font-size:14px; }
+.modalActions { display:flex; justify-content:space-between; align-items:center; gap:16px; width:100%; }
+.calendar { max-width:100%; overflow-x:auto; margin-bottom:16px; }
+.guestRow { display:flex; align-items:center; justify-content:space-between; padding:24px 0; gap:20px; border-bottom:1px solid var(--divider); }
+.guestRow:first-child { padding-top:0; }
+.guestRow p { margin:4px 0 0; font-size:14px; }
+.srOnly { position:absolute; width:1px; height:1px; padding:0; margin:-1px; overflow:hidden; clip:rect(0,0,0,0); white-space:nowrap; border:0; }
+.skeleton { background:var(--surface); border-radius:8px; }
+.titleSkeleton { width:240px; height:36px; margin-bottom:48px; }
+.sectionSkeleton { height:180px; margin-bottom:32px; }
+.summarySkeleton { height:410px; border-radius:12px; }
+.priceSkeleton { height:20px; margin-bottom:20px; }
+.pending { font-size:22px; letter-spacing:4px; }
+@media (prefers-reduced-motion:no-preference) {
+  .skeleton { background:linear-gradient(90deg,var(--divider),var(--surface),var(--divider)); background-size:200% 100%; animation:shimmer 1.3s linear infinite; }
+  .pending { animation:pulse 1s ease-in-out infinite; }
+  .main { animation:checkout-enter 240ms cubic-bezier(.2,.8,.2,1); }
+  .summary { animation:checkout-enter 280ms cubic-bezier(.2,.8,.2,1); }
+  .quote,.error { animation:checkout-fade 180ms ease-out; }
+  .backButton,.textButton,.changeButton,.darkButton,.outlineButton,.confirmButton { transition:transform 120ms ease,background-color 160ms ease; }
+  .backButton:active,.textButton:active:not(:disabled),.changeButton:active:not(:disabled),.darkButton:active:not(:disabled),.outlineButton:active:not(:disabled),.confirmButton:active:not(:disabled) { transform:scale(.98); }
+}
+@keyframes checkout-enter { from { opacity:0; transform:translateY(8px); } to { opacity:1; transform:translateY(0); } }
+@keyframes checkout-fade { from { opacity:.45; } to { opacity:1; } }
+@media (prefers-reduced-motion:reduce) { .main,.summary,.quote,.error,.pending,.skeleton { animation:none; } .backButton,.textButton,.darkButton,.outlineButton,.confirmButton { transition:none; } }
+.discount{color:#008a05}
+@keyframes shimmer { from { background-position:200% 0; } to { background-position:-200% 0; } }
+@keyframes pulse { 50% { opacity:.5; } }
+@media (max-width:1127px) { .page { padding:48px 40px 64px; } .backButton { margin-left:0; } .titleRow { gap:16px; } }
+@media (max-width:949px) { .layout { grid-template-columns:minmax(0,1fr); gap:32px; width:100%; } .summary { position:static; order:-1; } .summarySkeleton { order:-1; } .page { max-width:760px; } .titleRow { margin-bottom:32px; } }
+@media (max-width:743px) { .page { padding:24px 24px 48px; } .titleRow { gap:12px; } .titleRow h1 { font-size:26px; line-height:32px; } .backButton { margin-left:-12px; flex-shrink:0; } .summary { padding:20px; } .propertyPhoto { width:96px; height:96px; } .confirmButton { width:100%; } .textButton { min-height:44px; } .tripRow { align-items:center; } .section { padding:20px; } .priceRow { font-size:15px; } }
