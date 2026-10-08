@@ -46,3 +46,5 @@ def test_ipv6_clients_are_grouped_by_network() -> None:
     assert client_key(request("2001:db8::1")) == client_key(request("2001:db8::ffff"))
     assert client_key(request("2001:db8::1")) != client_key(request("2001:db8:0:1::1"))
     assert client_key(request("203.0.113.7")) == "203.0.113.7"
+    assert client_key(request("::ffff:203.0.113.7")) == "203.0.113.7"
+    assert client_key(request("::ffff:198.51.100.9")) == "198.51.100.9"

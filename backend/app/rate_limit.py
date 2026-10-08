@@ -60,8 +60,11 @@ def client_key(request: Request) -> str:
         address = ipaddress.ip_address(host)
     except ValueError:
         return host
-    # One IPv6 machine usually controls a whole /64, so count the network, not each address.
     if address.version == 6:
+        # Dual-stack sockets report IPv4 clients as ::ffff:a.b.c.d; keep those per address.
+        if address.ipv4_mapped:
+            return str(address.ipv4_mapped)
+        # One IPv6 machine usually controls a whole /64, so count the network, not each address.
         return str(ipaddress.IPv6Network((address, 64), strict=False))
     return str(address)
 
