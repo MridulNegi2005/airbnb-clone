@@ -14,8 +14,8 @@ A full-stack clone of the Airbnb web application for stays in Bengaluru and the 
 - Filter by price range, type of place, property type, rooms, beds, bathrooms, amenities and category.
 - Load results one page at a time for infinite scroll.
 - Read a listing: photos, description, amenities, host, an approximate location, booked dates and reviews.
-- Get a price quote: nightly rate × nights, cleaning fee and service fee, in Indian rupees.
-- Book a stay. The API rejects past dates, too many guests and dates that another stay uses.
+- Get a price quote: nightly rate × nights, weekly discount, cleaning fee and service fee, in Indian rupees.
+- Book a stay. The API rejects past dates, too many guests, stays that are too short or too long, and nights that are booked or blocked.
 - See all trips in "My Trips". Cancel an upcoming trip to free its dates. See the exact address after booking.
 - Review a stay after check-out, with an overall rating and six category ratings.
 - Save listings to named wishlists.
@@ -25,6 +25,8 @@ A full-stack clone of the Airbnb web application for stays in Bengaluru and the 
 
 - Create, edit and remove listings. Add photos by upload or by URL. Find the address with Google Places Autocomplete.
 - See all owned listings and the number of upcoming reservations on each.
+- Block and unblock nights on the calendar. Set a minimum and a maximum number of nights.
+- Give a weekly discount for stays of 7 nights or more.
 - See all reservations, with guest details, and review each guest after the stay.
 
 ### Profiles
@@ -62,13 +64,13 @@ Other modules:
 
 ### Booking integrity
 
-The API checks availability and inserts the booking in one transaction. SQLite has no row locks. Thus, the service first writes to the listing row. This write takes the database write lock. A second booking request for the same dates waits until the first transaction ends. Then it sees the first booking and gets `409 Conflict`.
+The API checks availability and inserts the booking in one transaction. SQLite has no row locks. Thus, the service first writes to the listing row. This write takes the database write lock. A second booking request for the same dates waits until the first transaction ends. Then it sees the first booking and gets `409 Conflict`. A host who blocks nights takes the same lock, so a block and a booking cannot both take the same night.
 
 Two stays overlap when `existing.check_in < new.check_out` and `existing.check_out > new.check_in`. The check-out day is free, so a new guest can arrive on the day the previous guest leaves.
 
 ### Price snapshot
 
-A booking stores the nightly rate, the cleaning fee, the service fee and the total at the time of booking. A later price change on the listing does not change existing bookings. The service fee is 14% of the nightly subtotal plus the cleaning fee.
+A booking stores the nightly rate, the discount, the cleaning fee, the service fee and the total at the time of booking. A later price change on the listing does not change existing bookings. For stays of 7 nights or more, the weekly discount is a percentage of the nightly subtotal. The service fee is 14% of the subtotal after the discount, plus the cleaning fee.
 
 ### Location privacy
 
@@ -92,6 +94,7 @@ erDiagram
     listings ||--o{ bookings : receives
     listings ||--o{ wishlist_items : "is saved in"
     listings ||--o{ conversations : "is about"
+    listings ||--o{ blocked_periods : "is closed on"
     listings }o--o{ amenities : listing_amenities
     listings }o--o{ categories : listing_categories
     wishlists ||--o{ wishlist_items : contains
@@ -103,8 +106,9 @@ erDiagram
 | Table | Purpose | Important columns and constraints |
 | --- | --- | --- |
 | `users` | Guests and hosts | `email` and `google_sub` are unique. CHECK: the user has a password or a Google account. `languages` is a JSON list. |
-| `listings` | Places to stay | `host_id` → `users`. Enums with CHECK constraints for the property type and the room type. CHECK constraints keep prices, guests, rooms and coordinates valid. `archived_at` marks a removed listing. |
+| `listings` | Places to stay | `host_id` → `users`. Enums with CHECK constraints for the property type and the room type. CHECK constraints keep prices, guests, rooms, coordinates, stay limits (1 to 365 nights) and the weekly discount (0 to 90%) valid. `archived_at` marks a removed listing. |
 | `listing_images` | Ordered photos | `listing_id` → `listings`. `position` sets the display order. |
+| `blocked_periods` | Nights that the host closed | CHECK `end_date > start_date`. Index on `(listing_id, start_date, end_date)`. |
 | `amenities`, `categories` | Catalogues | `name` and `slug` are unique. `icon` is a key for the frontend icon. |
 | `listing_amenities`, `listing_categories` | Many-to-many links | Composite primary keys prevent duplicate links. |
 | `bookings` | Reservations | CHECK `check_out > check_in`. `status` is `confirmed` or `cancelled`. CHECK: `cancelled_at` is set only for a cancelled booking. Index on `(listing_id, check_in, check_out)` for the overlap check. |
@@ -121,7 +125,7 @@ Each foreign key has a delete rule that matches the meaning of the data. SQLite 
 | Rule | Where | Reason |
 | --- | --- | --- |
 | `RESTRICT` | Bookings → listings and users. Reviews → bookings. Conversations and messages → users and listings. Listings → host. | Bookings and reviews are financial and history records. The database refuses to delete a row that a booking or a review uses. |
-| `CASCADE` | Images, amenity links and category links → listings. Wishlist items → wishlists. Wishlists and uploads → users. Messages → conversations. | These rows belong to their parent and have no meaning without it. |
+| `CASCADE` | Images, blocked periods, amenity links and category links → listings. Wishlist items → wishlists. Wishlists and uploads → users. Messages → conversations. | These rows belong to their parent and have no meaning without it. |
 | Soft delete | Listings | "Delete" sets `archived_at`. The listing leaves search, but past trips and reviews still show it. The API refuses to archive a listing that has upcoming reservations. |
 
 ### Other design decisions
@@ -131,6 +135,7 @@ Each foreign key has a delete rule that matches the meaning of the data. SQLite 
 - A partial index on the coordinates of active listings makes the map search fast.
 - Money is a whole number of rupees (`INTEGER`), so there are no rounding errors.
 - The naming convention gives every constraint a fixed name, so Alembic can change constraints on SQLite.
+- Alembic autogenerate does not compare CHECK constraints. Thus, a test compares the CHECK constraints of a migrated database with those of a database made from the models.
 
 ## API overview
 
@@ -141,7 +146,7 @@ All endpoints start with `/api`. The server shows interactive documentation at `
 | Auth | `POST /auth/register`, `POST /auth/login`, `POST /auth/google`, `GET /auth/me` 🔒 |
 | Catalogue | `GET /categories`, `GET /amenities`, `GET /service-area` |
 | Listings | `GET /listings` (search, filters, map bounds, pagination), `GET /listings/{id}`, `GET /listings/{id}/booked-dates`, `GET /listings/{id}/quote`, `GET /listings/{id}/reviews` |
-| Hosting | `POST /listings` 🔒, `PUT /listings/{id}` 🔒, `DELETE /listings/{id}` 🔒, `GET /host/listings` 🔒, `GET /host/listings/{id}` 🔒, `GET /host/bookings` 🔒, `POST /uploads` 🔒 |
+| Hosting | `POST /listings` 🔒, `PUT /listings/{id}` 🔒, `DELETE /listings/{id}` 🔒, `GET /host/listings` 🔒, `GET /host/listings/{id}` 🔒, `GET` and `POST /host/listings/{id}/blocked-dates` 🔒, `DELETE /host/listings/{id}/blocked-dates/{period_id}` 🔒, `GET /host/bookings` 🔒, `POST /uploads` 🔒 |
 | Trips | `POST /bookings` 🔒, `GET /bookings` 🔒, `GET /bookings/{id}` 🔒, `POST /bookings/{id}/cancel` 🔒, `POST /bookings/{id}/review` 🔒, `POST /bookings/{id}/guest-review` 🔒 |
 | Wishlists | `GET /wishlists` 🔒, `POST /wishlists` 🔒, `GET /wishlists/saved` 🔒, `GET`, `PATCH` and `DELETE /wishlists/{id}` 🔒, `PUT` and `DELETE /wishlists/{id}/listings/{listing_id}` 🔒 |
 | Profiles | `GET /users/{id}`, `GET /users/{id}/listings`, `GET /users/{id}/reviews`, `PATCH /users/me` 🔒, `POST /users/me/identity-verification` 🔒 |
@@ -154,7 +159,8 @@ Error responses use the format `{"detail": "..."}`. The API uses `409 Conflict` 
 - **Passwords:** PBKDF2-SHA256 with 600,000 iterations and a random salt. Login takes the same time for unknown emails.
 - **Google sign-in:** the API checks the signature of the Google ID token with Google's public keys. It also checks the audience, the issuer, the expiry time and that Google verified the email.
 - **Request limits for each client IP:** 300 requests a minute in total, and 20 login and sign-up attempts in 5 minutes.
-- **Limits for each user:** 10 bookings an hour, 30 messages a minute, 10 new conversations an hour, 60 uploads an hour (300 in total), 20 reviews an hour and 30 listing changes an hour.
+- **Limits for each user:** 10 bookings an hour, 30 messages a minute, 10 new conversations an hour, 60 uploads an hour (300 in total), 20 reviews an hour, 30 listing changes an hour and 60 calendar changes an hour.
+- **Memory:** each limiter keeps at most 50,000 clients. When it is full, it forgets the client that it saw least recently. IPv6 clients count as one /64 network. Transition addresses (Teredo, 6to4, NAT64) count as the IPv4 client inside them.
 - **Uploads:** at most 8 MB. The API rejects a larger `Content-Length` before it reads the body.
 - **Google Cloud:** each Maps and Places API has a daily quota cap below the free tier. A budget alert sends an email at ₹1. The browser API key works only from the app domains.
 - **Validation:** each ID, number and text field has a range or a maximum length. Errors never return the rejected input.
@@ -172,11 +178,21 @@ Error responses use the format `{"detail": "..."}`. The API uses `409 Conflict` 
 
 ## Tests
 
-The backend has API tests for each feature, unit tests for the rate limiter, and a test that the migrations match the models.
+The backend has three kinds of tests:
+
+- **API tests** for each feature, with unit tests for pricing and the rate limiter.
+- **Security tests** (`tests/test_security.py`): forged and expired tokens, access to the data of other users, mass assignment, SQL and wildcard injection, dangerous uploads, path traversal, data leaks, location privacy, CORS and rate limits.
+- **Migration tests:** the migrations create the same schema and CHECK constraints as the models, and they downgrade cleanly.
 
 ```bash
 cd backend
 pytest
+```
+
+A smoke test checks a running server from end to end. Without `--write`, it only reads data. With `--write`, it signs up a new user and tries the main guest and host flows.
+
+```bash
+python scripts/smoke_test.py --base-url http://localhost:8000 --write
 ```
 
 ## Setup

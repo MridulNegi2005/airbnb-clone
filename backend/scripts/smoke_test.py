@@ -168,6 +168,7 @@ def write_checks(api: Client, state: dict[str, Any]) -> None:
         )
         assert result["url"].endswith(".webp")
         api.request("PATCH", "/api/users/me", {"avatar_url": result["url"]})
+        state["photo_url"] = result["url"]
 
     def book_and_cancel() -> None:
         for _ in range(5):
@@ -201,7 +202,57 @@ def write_checks(api: Client, state: dict[str, Any]) -> None:
         messages = api.request("GET", f"/api/conversations/{thread['id']}/messages")
         assert messages[-1]["body"] == "Smoke test"
 
-    for check in (sign_up, wishlist, upload, book_and_cancel, message):
+    def host_flow() -> None:
+        area = state["area"]
+        listing = api.request(
+            "POST",
+            "/api/listings",
+            {
+                "title": "Smoke test cottage",
+                "description": "Created by the smoke test and archived at the end.",
+                "property_type": "house",
+                "room_type": "entire_home",
+                "address": "1 Test Road",
+                "neighbourhood": "Testpur",
+                "city": "Bengaluru",
+                "country": "India",
+                "latitude": (area["south"] + area["north"]) / 2,
+                "longitude": (area["west"] + area["east"]) / 2,
+                "price_per_night": 2000,
+                "max_guests": 2,
+                "bedrooms": 1,
+                "beds": 1,
+                "bathrooms": 1,
+                "min_nights": 2,
+                "weekly_discount_percent": 10,
+                "image_urls": [state["photo_url"]],
+            },
+            expect=201,
+        )
+        base = f"/api/listings/{listing['id']}"
+        start = date.today() + timedelta(days=30)
+        week = api.request(
+            "GET", f"{base}/quote?check_in={start}&check_out={start + timedelta(days=7)}"
+        )
+        assert week["discount"] == 1400, week
+        one_night = f"{base}/quote?check_in={start}&check_out={start + timedelta(days=1)}"
+        api.request("GET", one_night, expect=422)
+
+        calendar = f"/api/host/listings/{listing['id']}/blocked-dates"
+        period = api.request(
+            "POST",
+            calendar,
+            {"start_date": str(start), "end_date": str(start + timedelta(days=3))},
+            expect=201,
+        )
+        assert {"check_in": str(start), "check_out": str(start + timedelta(days=3))} in (
+            api.request("GET", f"{base}/booked-dates")
+        )
+        api.request("DELETE", f"{calendar}/{period['id']}", expect=204)
+        api.request("DELETE", base, expect=204)
+        api.request("GET", base, expect=404)
+
+    for check in (sign_up, wishlist, upload, book_and_cancel, message, host_flow):
         _run(check)
 
 
