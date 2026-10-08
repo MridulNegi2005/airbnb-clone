@@ -1,5 +1,5 @@
 "use client";
-import { useRef, useState, type ChangeEvent, type FormEvent } from "react";
+import { useEffect, useRef, useState, type ChangeEvent, type FormEvent } from "react";
 import { useQueryClient } from "@tanstack/react-query";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
@@ -30,7 +30,20 @@ function Editor({ user }: { user: UserPrivate }) {
   const [editing, setEditing] = useState<ProfileField | null>(null);
   const [modalField, setModalField] = useState<ProfileField>("name");
   const [fieldSession, setFieldSession] = useState(0);
-  function openField(field: ProfileField) { setModalField(field); setFieldSession(value => value + 1); setEditing(field); }
+  const fieldTrigger = useRef<HTMLElement | null>(null);
+  const restoreFocusTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
+  useEffect(() => () => { if (restoreFocusTimer.current) clearTimeout(restoreFocusTimer.current); }, []);
+  function openField(field: ProfileField) {
+    if (restoreFocusTimer.current) clearTimeout(restoreFocusTimer.current);
+    fieldTrigger.current = document.activeElement instanceof HTMLElement ? document.activeElement : null;
+    setModalField(field); setFieldSession(value => value + 1); setEditing(field);
+  }
+  function closeField() {
+    setEditing(null);
+    const trigger = fieldTrigger.current;
+    const delay = window.matchMedia("(prefers-reduced-motion: reduce)").matches ? 0 : 220;
+    restoreFocusTimer.current = setTimeout(() => { if (trigger?.isConnected) trigger.focus(); restoreFocusTimer.current = null; }, delay);
+  }
   const [languagesOpen, setLanguagesOpen] = useState(false), [pending, setPending] = useState(false), [uploading, setUploading] = useState(false), [error, setError] = useState("");
   function changes(): ProfileUpdate {
     const body: ProfileUpdate = {};
@@ -79,7 +92,7 @@ function Editor({ user }: { user: UserPrivate }) {
       </div>
       <div className={styles.editorFooter}><span className="muted small">{cooldown.remaining > 0 ? `Try again in ${cooldown.remaining} seconds` : dirty ? "You have unsaved changes" : ""}</span><button type="submit" className="dark-button" disabled={busy || !draft.name.trim()}>{pending ? "Saving…" : "Done"}</button></div>
     </form>
-    <ProfileFieldModal key={`${modalField}-${fieldSession}`} open={editing !== null} field={modalField} value={draft[modalField]} onClose={() => setEditing(null)} onSave={value => { setDraft(previous => ({ ...previous, [modalField]: value })); setEditing(null); }} />
+    <ProfileFieldModal key={`${modalField}-${fieldSession}`} open={editing !== null} field={modalField} value={draft[modalField]} onClose={closeField} onSave={value => { setDraft(previous => ({ ...previous, [modalField]: value })); closeField(); }} />
     <LanguagesModal open={languagesOpen} selected={draft.languages} onClose={() => setLanguagesOpen(false)} onSave={selected => { setDraft(value => ({ ...value, languages: selected })); setLanguagesOpen(false); }} />
   </div>;
 }

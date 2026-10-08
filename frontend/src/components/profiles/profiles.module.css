@@ -8,9 +8,10 @@
 .field input,.field textarea{transition:border-color 160ms ease,box-shadow 160ms ease}
 @media(prefers-reduced-motion:no-preference){
 .publicPage,.editorPage,.verifyPage,.state{animation:profile-enter 320ms cubic-bezier(.1,.9,.2,1) both}
+.editorPage{animation-fill-mode:backwards}
 .reviewTrack,.allReviews{animation:profile-content-enter 220ms ease-out both}
 .verifySuccess{animation:profile-enter 400ms cubic-bezier(.1,.9,.2,1) both}
-@keyframes profile-enter{from{opacity:0;transform:translateY(8px)}to{opacity:1;transform:translateY(0)}}
+@keyframes profile-enter{from{opacity:0;transform:translateY(8px)}to{opacity:1;transform:none}}
 @keyframes profile-content-enter{from{opacity:.35}to{opacity:1}}
 }
 @media(prefers-reduced-motion:reduce){.publicPage,.editorPage,.verifyPage,.state,.reviewTrack,.allReviews,.verifySuccess{animation:none}.tabs button,.avatarEdit,.languageButton,.chips button,.demoUpload,.field input,.field textarea{transition:none}}
