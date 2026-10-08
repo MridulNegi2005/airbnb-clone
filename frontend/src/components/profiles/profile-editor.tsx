@@ -1,5 +1,5 @@
 "use client";
-import { useRef, useState, type ChangeEvent, type FormEvent } from "react";
+import { useRef, useState, type ChangeEvent, type FormEvent, type MouseEvent } from "react";
 import { useQueryClient } from "@tanstack/react-query";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
@@ -25,7 +25,7 @@ export function ProfileEditor() {
 function Editor({ user }: { user: UserPrivate }) {
   const { updateUser } = useAuth(), client = useQueryClient(), router = useRouter(), fileInput = useRef<HTMLInputElement>(null), cooldown = useProfileCooldown();
   const [draft, setDraft] = useState({ name: user.name, work: user.work ?? "", lives_in: user.lives_in ?? "", about: user.about ?? "", languages: user.languages ?? [] });
-  const avatarLock = useRef(false);
+  const mutationLock = useRef(false);
   const [uploadPhase, setUploadPhase] = useState<"queued" | "uploading" | "processing">("uploading");
   const [editing, setEditing] = useState<ProfileField | null>(null);
   const [modalField, setModalField] = useState<ProfileField>("name");
@@ -44,26 +44,30 @@ function Editor({ user }: { user: UserPrivate }) {
     return body;
   }
   const dirty = Object.keys(changes()).length > 0, busy = pending || uploading || cooldown.remaining > 0;
+  function preventPendingNavigation(event: MouseEvent<HTMLAnchorElement>) {
+    if (mutationLock.current) event.preventDefault();
+  }
   async function save(event: FormEvent<HTMLFormElement>) {
-    event.preventDefault(); if (busy) return; const body = changes();
+    event.preventDefault(); if (busy || mutationLock.current) return; const body = changes();
     if (!Object.keys(body).length) { router.push(`/users/${user.id}`); return; }
+    mutationLock.current = true;
     setPending(true); setError("");
     try { const updated = await updateProfile(body); updateUser(updated); setDraft({ name: updated.name, work: updated.work ?? "", lives_in: updated.lives_in ?? "", about: updated.about ?? "", languages: updated.languages ?? [] }); await client.invalidateQueries({ queryKey: queryKeys.profile(updated.id) }); toast.success("Profile updated"); router.push(`/users/${updated.id}`); }
     catch (reason) { cooldown.capture(reason); setError(reason instanceof Error ? reason.message : "Your profile couldn't be saved. Try again."); }
-    finally { setPending(false); }
+    finally { setPending(false); mutationLock.current = false; }
   }
   async function avatar(event: ChangeEvent<HTMLInputElement>) {
-    const file = event.target.files?.[0]; event.target.value = ""; if (!file || busy || avatarLock.current) return;
+    const file = event.target.files?.[0]; event.target.value = ""; if (!file || busy || mutationLock.current) return;
     if (!["image/jpeg", "image/png", "image/webp"].includes(file.type)) { setError("Use a JPEG, PNG or WebP photo"); return; }
     if (file.size > 8 * 1024 * 1024) { setError("That photo is too large (max 8 MB)"); return; }
-    avatarLock.current = true; setUploading(true); setUploadPhase("uploading"); setError("");
+    mutationLock.current = true; setUploading(true); setUploadPhase("uploading"); setError("");
     try { const uploaded = await uploadPhoto(file, { onProgress: progress => setUploadPhase(progress.phase) }); const updated = await updateProfile({ avatar_url: uploaded.url }); updateUser(updated); await client.invalidateQueries({ queryKey: queryKeys.profile(updated.id) }); toast.success("Profile photo updated"); }
     catch (reason) { cooldown.capture(reason); setError(reason instanceof Error ? reason.message : "Your photo couldn't be uploaded. Try again."); }
-    finally { setUploading(false); avatarLock.current = false; }
+    finally { setUploading(false); mutationLock.current = false; }
   }
   return <div className={styles.editorPage}>
-    <header className={styles.mobileEditorHeader}><Link href={`/users/${user.id}`} aria-label="Close profile editor"><X size={20} /></Link><h2>Edit profile</h2></header>
-    <Link href={`/users/${user.id}`} className={styles.back}><ChevronLeft size={18} />Profile</Link>
+    <header className={styles.mobileEditorHeader}><Link href={`/users/${user.id}`} aria-label="Close profile editor" aria-disabled={pending || uploading} onClick={preventPendingNavigation}><X size={20} /></Link><h2>Edit profile</h2></header>
+    <Link href={`/users/${user.id}`} className={styles.back} aria-disabled={pending || uploading} onClick={preventPendingNavigation}><ChevronLeft size={18} />Profile</Link>
     <form onSubmit={save} className={styles.editor}>
       <aside className={styles.editAvatar}>
         <ProfileAvatar user={user} size={214} />
@@ -79,7 +83,7 @@ function Editor({ user }: { user: UserPrivate }) {
           <button type="button" disabled={pending} onClick={() => openField("lives_in")}><MapPin size={24} /><span>{draft.lives_in ? `Where I live: ${draft.lives_in}` : "Where I live"}</span><Pencil size={16} /></button>
         </div>
         <section className={styles.aboutEditor}><h2>About me</h2>{draft.about ? <p className={styles.plainText}>{draft.about}</p> : <p className="muted">Write something fun and punchy.</p>}<button type="button" className="outline-button" disabled={pending} onClick={() => openField("about")}>{draft.about ? "Edit intro" : "Add intro"}</button></section>
-        <Link href="/account/verify" className={styles.verificationLink}><ShieldCheck size={24} /><div><strong>{user.is_identity_verified ? "Identity verified" : "Verify your identity"}</strong><span>{user.is_identity_verified ? "Your identity badge appears on your profile." : "Add a verified badge to your profile with our demo flow."}</span></div><ChevronRight size={20} /></Link>
+        <Link href="/account/verify" className={styles.verificationLink} aria-disabled={pending || uploading} onClick={preventPendingNavigation}><ShieldCheck size={24} /><div><strong>{user.is_identity_verified ? "Identity verified" : "Verify your identity"}</strong><span>{user.is_identity_verified ? "Your identity badge appears on your profile." : "Add a verified badge to your profile with our demo flow."}</span></div><ChevronRight size={20} /></Link>
         {error && <p role="alert" className="error-text">{error}</p>}
       </div>
       <div className={styles.editorFooter}><span className="muted small">{cooldown.remaining > 0 ? `Try again in ${cooldown.remaining} seconds` : dirty ? "You have unsaved changes" : ""}</span><button type="submit" className="dark-button" disabled={busy || !draft.name.trim()}>{cooldown.remaining > 0 ? `Try again in ${cooldown.remaining}s` : pending ? "Saving…" : "Done"}</button></div>
