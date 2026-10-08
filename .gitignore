@@ -11,8 +11,9 @@ __pycache__/
 .ruff_cache/
 
 # Backend runtime data
-backend/*.db
-backend/uploads/
+*.db
+*.db-*
+uploads/
 
 # Node
 node_modules/
