@@ -11,6 +11,7 @@ from fastapi.staticfiles import StaticFiles
 from app.config import get_settings
 from app.models import create_tables
 from app.routers import auth, bookings, catalog, host, listings, uploads, wishlist
+from app.security import dummy_password_hash
 
 _MULTIPART_OVERHEAD_BYTES = 64 * 1024
 
@@ -18,6 +19,7 @@ _MULTIPART_OVERHEAD_BYTES = 64 * 1024
 @asynccontextmanager
 async def lifespan(_app: FastAPI) -> AsyncIterator[None]:
     create_tables()
+    dummy_password_hash()
     yield
 
 
