@@ -1,9 +1,9 @@
 "use client";
-import { useEffect, useRef, useState, type ChangeEvent, type FormEvent } from "react";
+import { useRef, useState, type ChangeEvent, type FormEvent } from "react";
 import { useQueryClient } from "@tanstack/react-query";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
-import { BriefcaseBusiness, Camera, ChevronLeft, ChevronRight, Languages, MapPin, Pencil, ShieldCheck, UserRound } from "lucide-react";
+import { BriefcaseBusiness, Camera, ChevronLeft, ChevronRight, Languages, MapPin, Pencil, ShieldCheck, UserRound, X } from "lucide-react";
 import { toast } from "sonner";
 import { queryKeys, updateProfile, uploadPhoto } from "@/lib/api";
 import { useAuth } from "@/providers/auth-provider";
@@ -30,20 +30,11 @@ function Editor({ user }: { user: UserPrivate }) {
   const [editing, setEditing] = useState<ProfileField | null>(null);
   const [modalField, setModalField] = useState<ProfileField>("name");
   const [fieldSession, setFieldSession] = useState(0);
-  const fieldTrigger = useRef<HTMLElement | null>(null);
-  const restoreFocusTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
-  useEffect(() => () => { if (restoreFocusTimer.current) clearTimeout(restoreFocusTimer.current); }, []);
   function openField(field: ProfileField) {
-    if (restoreFocusTimer.current) clearTimeout(restoreFocusTimer.current);
-    fieldTrigger.current = document.activeElement instanceof HTMLElement ? document.activeElement : null;
     setModalField(field); setFieldSession(value => value + 1); setEditing(field);
   }
-  function closeField() {
-    setEditing(null);
-    const trigger = fieldTrigger.current;
-    const delay = window.matchMedia("(prefers-reduced-motion: reduce)").matches ? 0 : 220;
-    restoreFocusTimer.current = setTimeout(() => { if (trigger?.isConnected) trigger.focus(); restoreFocusTimer.current = null; }, delay);
-  }
+  function closeField() { setEditing(null); }
+  const [languagesSession, setLanguagesSession] = useState(0);
   const [languagesOpen, setLanguagesOpen] = useState(false), [pending, setPending] = useState(false), [uploading, setUploading] = useState(false), [error, setError] = useState("");
   function changes(): ProfileUpdate {
     const body: ProfileUpdate = {};
@@ -71,10 +62,11 @@ function Editor({ user }: { user: UserPrivate }) {
     finally { setUploading(false); avatarLock.current = false; }
   }
   return <div className={styles.editorPage}>
+    <header className={styles.mobileEditorHeader}><Link href={`/users/${user.id}`} aria-label="Close profile editor"><X size={20} /></Link><h2>Edit profile</h2></header>
     <Link href={`/users/${user.id}`} className={styles.back}><ChevronLeft size={18} />Profile</Link>
     <form onSubmit={save} className={styles.editor}>
       <aside className={styles.editAvatar}>
-        <ProfileAvatar user={user} size={160} />
+        <ProfileAvatar user={user} size={214} />
         <button type="button" className={styles.avatarEdit} disabled={busy} onClick={() => fileInput.current?.click()}><Camera size={16} />{uploading ? uploadPhase === "processing" ? "Processing…" : uploadPhase === "queued" ? "Queued…" : "Uploading…" : "Edit"}</button>
         <input ref={fileInput} type="file" accept="image/jpeg,image/png,image/webp" aria-label="Upload profile photo" hidden onChange={event => void avatar(event)} />
       </aside>
@@ -83,16 +75,16 @@ function Editor({ user }: { user: UserPrivate }) {
         <div className={styles.profileFieldRows}>
           <button type="button" disabled={pending} onClick={() => openField("name")}><UserRound size={24} /><span>Name: {draft.name}</span><Pencil size={16} /></button>
           <button type="button" disabled={pending} onClick={() => openField("work")}><BriefcaseBusiness size={24} /><span>{draft.work ? `My work: ${draft.work}` : "My work"}</span><Pencil size={16} /></button>
-          <button type="button" disabled={pending} onClick={() => setLanguagesOpen(true)}><Languages size={24} /><span>{draft.languages.length ? `Languages I speak: ${new Intl.ListFormat("en-IN").format(draft.languages)}` : "Languages I speak"}</span><Pencil size={16} /></button>
+          <button type="button" disabled={pending} onClick={() => { setLanguagesSession(value => value + 1); setLanguagesOpen(true); }}><Languages size={24} /><span>{draft.languages.length ? `Languages I speak: ${new Intl.ListFormat("en-IN").format(draft.languages)}` : "Languages I speak"}</span><Pencil size={16} /></button>
           <button type="button" disabled={pending} onClick={() => openField("lives_in")}><MapPin size={24} /><span>{draft.lives_in ? `Where I live: ${draft.lives_in}` : "Where I live"}</span><Pencil size={16} /></button>
         </div>
         <section className={styles.aboutEditor}><h2>About me</h2>{draft.about ? <p className={styles.plainText}>{draft.about}</p> : <p className="muted">Write something fun and punchy.</p>}<button type="button" className="outline-button" disabled={pending} onClick={() => openField("about")}>{draft.about ? "Edit intro" : "Add intro"}</button></section>
         <Link href="/account/verify" className={styles.verificationLink}><ShieldCheck size={24} /><div><strong>{user.is_identity_verified ? "Identity verified" : "Verify your identity"}</strong><span>{user.is_identity_verified ? "Your identity badge appears on your profile." : "Add a verified badge to your profile with our demo flow."}</span></div><ChevronRight size={20} /></Link>
         {error && <p role="alert" className="error-text">{error}</p>}
       </div>
-      <div className={styles.editorFooter}><span className="muted small">{cooldown.remaining > 0 ? `Try again in ${cooldown.remaining} seconds` : dirty ? "You have unsaved changes" : ""}</span><button type="submit" className="dark-button" disabled={busy || !draft.name.trim()}>{pending ? "Saving…" : "Done"}</button></div>
+      <div className={styles.editorFooter}><span className="muted small">{cooldown.remaining > 0 ? `Try again in ${cooldown.remaining} seconds` : dirty ? "You have unsaved changes" : ""}</span><button type="submit" className="dark-button" disabled={busy || !draft.name.trim()}>{cooldown.remaining > 0 ? `Try again in ${cooldown.remaining}s` : pending ? "Saving…" : "Done"}</button></div>
     </form>
     <ProfileFieldModal key={`${modalField}-${fieldSession}`} open={editing !== null} field={modalField} value={draft[modalField]} onClose={closeField} onSave={value => { setDraft(previous => ({ ...previous, [modalField]: value })); closeField(); }} />
-    <LanguagesModal open={languagesOpen} selected={draft.languages} onClose={() => setLanguagesOpen(false)} onSave={selected => { setDraft(value => ({ ...value, languages: selected })); setLanguagesOpen(false); }} />
+    <LanguagesModal key={languagesSession} open={languagesOpen} selected={draft.languages} onClose={() => setLanguagesOpen(false)} onSave={selected => { setDraft(value => ({ ...value, languages: selected })); setLanguagesOpen(false); }} />
   </div>;
 }
