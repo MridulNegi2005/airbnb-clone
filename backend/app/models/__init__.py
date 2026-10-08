@@ -1,7 +1,6 @@
 from app.models.booking import Booking, BookingStatus
 from app.models.calendar import BlockedPeriod
 from app.models.listing import (
-    APPROX_OFFSET_DEGREES,
     Amenity,
     Category,
     Listing,
@@ -16,7 +15,6 @@ from app.models.user import User
 from app.models.wishlist import Wishlist, WishlistItem
 
 __all__ = [
-    "APPROX_OFFSET_DEGREES",
     "LISTING_RATING_FIELDS",
     "Amenity",
     "BlockedPeriod",

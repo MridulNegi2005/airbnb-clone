@@ -1,11 +1,9 @@
 from datetime import datetime
 from enum import StrEnum
-from typing import Any
 
 from sqlalchemy import (
     CheckConstraint,
     Column,
-    ColumnElement,
     ForeignKey,
     Index,
     String,
@@ -15,22 +13,12 @@ from sqlalchemy import (
     select,
     text,
 )
-from sqlalchemy.ext.hybrid import hybrid_property
 from sqlalchemy.orm import Mapped, column_property, mapped_column, relationship
 
 from app.database import Base, TimestampMixin, str_enum
 from app.models.booking import Booking
 from app.models.review import ListingReview
 from app.models.user import User
-
-# About +-330 m; enough to hide the exact home while keeping the map pin in the right area.
-APPROX_OFFSET_DEGREES = 0.003
-
-
-def _approx_offset(listing_id: Any, prime: int) -> Any:
-    # Stable per listing, so the public pin does not move between page loads. Works on a
-    # Python int and on the SQL column, so search can filter on what the public sees.
-    return ((listing_id * prime % 1000) / 1000.0 - 0.5) * (2 * APPROX_OFFSET_DEGREES)
 
 
 class PropertyType(StrEnum):
@@ -114,8 +102,8 @@ class Listing(TimestampMixin, Base):
         # Search only ever looks at active listings, so index just those rows.
         Index(
             "ix_listings_active_location",
-            "latitude",
-            "longitude",
+            "approx_latitude",
+            "approx_longitude",
             sqlite_where=Column("archived_at").is_(None),
         ),
     )
@@ -132,6 +120,9 @@ class Listing(TimestampMixin, Base):
     country: Mapped[str] = mapped_column(String(100))
     latitude: Mapped[float]
     longitude: Mapped[float]
+    # The public pin: a random point 150-330 m away, set when the location changes.
+    approx_latitude: Mapped[float]
+    approx_longitude: Mapped[float]
     google_place_id: Mapped[str | None] = mapped_column(String(255))
     price_per_night: Mapped[int]
     cleaning_fee: Mapped[int] = mapped_column(default=0)
@@ -189,21 +180,3 @@ class Listing(TimestampMixin, Base):
     @property
     def category_ids(self) -> list[int]:
         return [category.id for category in self.categories]
-
-    @hybrid_property
-    def approx_latitude(self) -> float:
-        return round(self.latitude + _approx_offset(self.id, 7919), 4)
-
-    @approx_latitude.inplace.expression
-    @classmethod
-    def _approx_latitude_sql(cls) -> ColumnElement[float]:
-        return cls.latitude + _approx_offset(cls.id, 7919)
-
-    @hybrid_property
-    def approx_longitude(self) -> float:
-        return round(self.longitude + _approx_offset(self.id, 104729), 4)
-
-    @approx_longitude.inplace.expression
-    @classmethod
-    def _approx_longitude_sql(cls) -> ColumnElement[float]:
-        return cls.longitude + _approx_offset(cls.id, 104729)

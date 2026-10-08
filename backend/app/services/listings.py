@@ -1,3 +1,5 @@
+import math
+import secrets
 from datetime import UTC, date, datetime
 
 from fastapi import HTTPException, status
@@ -7,7 +9,6 @@ from sqlalchemy.orm import Session, joinedload, selectinload, undefer_group
 from app.config import get_settings
 from app.database import Base
 from app.models import (
-    APPROX_OFFSET_DEGREES,
     LISTING_RATING_FIELDS,
     Amenity,
     Booking,
@@ -26,6 +27,20 @@ from app.services.availability import unavailable_listing_ids
 from app.services.media import ensure_usable_images
 
 _RELATION_FIELDS = {"image_urls", "amenity_ids", "category_ids"}
+
+# Public pins sit 150-330 m from the home, like Airbnb's approximate-location circle.
+_PIN_MIN_DEGREES = 0.0015
+_PIN_MAX_DEGREES = 0.003
+_random = secrets.SystemRandom()
+
+
+def approximate_location(latitude: float, longitude: float) -> tuple[float, float]:
+    angle = _random.uniform(0, 2 * math.pi)
+    distance = _random.uniform(_PIN_MIN_DEGREES, _PIN_MAX_DEGREES)
+    return (
+        round(latitude + distance * math.sin(angle), 4),
+        round(longitude + distance * math.cos(angle), 4),
+    )
 
 
 def active_listings() -> Select[tuple[Listing]]:
@@ -64,11 +79,7 @@ def _filter_conditions(filters: ListingFilters) -> list[ColumnElement[bool]]:
                 )
             )
     if bounds := filters.bounds:
-        # Match on the public (shifted) position, or shrinking boxes would reveal the real one.
-        # The wider box on the exact columns lets SQLite use the location index first.
-        margin = APPROX_OFFSET_DEGREES
-        conditions.append(Listing.latitude.between(bounds.south - margin, bounds.north + margin))
-        conditions.append(Listing.longitude.between(bounds.west - margin, bounds.east + margin))
+        # Match on the public pin, or shrinking boxes would reveal the real location.
         conditions.append(Listing.approx_latitude.between(bounds.south, bounds.north))
         conditions.append(Listing.approx_longitude.between(bounds.west, bounds.east))
     if filters.check_in and filters.check_out:
@@ -132,8 +143,14 @@ def apply_listing_write(db: Session, listing: Listing, host: User, payload: List
     image_urls = [str(url) for url in payload.image_urls]
     ensure_usable_images(db, host, image_urls)
 
+    moved = (listing.latitude, listing.longitude) != (payload.latitude, payload.longitude)
     for field, value in payload.model_dump(exclude=_RELATION_FIELDS).items():
         setattr(listing, field, value)
+    # A new offset on every edit would let someone average the pins back to the real spot.
+    if moved:
+        listing.approx_latitude, listing.approx_longitude = approximate_location(
+            payload.latitude, payload.longitude
+        )
     listing.images = [
         ListingImage(url=url, position=position) for position, url in enumerate(image_urls)
     ]
