@@ -74,7 +74,7 @@ A booking stores the nightly rate, the discount, the cleaning fee, the service f
 
 ### Location privacy
 
-Public listing responses show coordinates that move up to about 330 m from the real location. The offset is stable for each listing, so the map pin does not move. The street address and the exact coordinates are only in the booking response, for the guest and the host.
+Public listing responses show a map pin that is 150 to 330 m from the real location, in a random direction. A cryptographic random number generator sets the pin when the host saves a new location. The database stores the pin, so nobody can calculate the real location from it, and the pin does not move when the host changes other fields. Map search also uses the pin, so smaller and smaller search areas cannot find the real location. The street address and the exact coordinates are only in the booking response, for the guest and the host.
 
 ### Image uploads
 
@@ -157,11 +157,12 @@ Error responses use the format `{"detail": "..."}`. The API uses `409 Conflict` 
 ## Security and limits
 
 - **Passwords:** PBKDF2-SHA256 with 600,000 iterations and a random salt. Login takes the same time for unknown emails.
-- **Google sign-in:** the API checks the signature of the Google ID token with Google's public keys. It also checks the audience, the issuer, the expiry time and that Google verified the email.
+- **Sessions:** each access token holds a version number. When Google sign-in takes over an account that someone registered with the same email, the API removes the password and increases the version. This action signs out all old sessions.
+- **Google sign-in:** the API checks the signature of the Google ID token with Google's public keys. It also checks the audience, the issuer, the expiry time and that Google verified the email. The API links Google to an existing account only for Gmail and Google Workspace addresses, because Google confirms the owner of these addresses.
 - **Request limits for each client IP:** 300 requests a minute in total, and 20 login and sign-up attempts in 5 minutes.
 - **Limits for each user:** 10 bookings an hour, 30 messages a minute, 10 new conversations an hour, 60 uploads an hour (300 in total), 20 reviews an hour, 30 listing changes an hour and 60 calendar changes an hour.
 - **Memory:** each limiter keeps at most 50,000 clients. When it is full, it forgets the client that it saw least recently. IPv6 clients count as one /64 network. Transition addresses (Teredo, 6to4, NAT64) count as the IPv4 client inside them.
-- **Uploads:** at most 8 MB. The API rejects a larger `Content-Length` before it reads the body.
+- **Uploads:** at most 8 MB and 16 megapixels. The API rejects a larger `Content-Length` before it reads the body, and it rejects larger image dimensions before it decodes the pixels. It processes one image at a time to keep memory use low.
 - **Google Cloud:** each Maps and Places API has a daily quota cap below the free tier. A budget alert sends an email at ₹1. The browser API key works only from the app domains.
 - **Validation:** each ID, number and text field has a range or a maximum length. Errors never return the rejected input.
 
@@ -172,6 +173,7 @@ Error responses use the format `{"detail": "..."}`. The API uses `409 Conflict` 
 - Dates are calendar days with no time zone. "Today" is the server date.
 - A stay is 1 to 365 nights for 1 to 16 guests. Infants and pets do not count as guests.
 - Only the guest can cancel a booking, and only before the check-in day.
+- Payment is mocked. Thus, any user can book a stay to see the exact address and then cancel. A real payment step would prevent this.
 - Reviews open on the check-out day.
 - The rate limits are in process memory. Thus, the API runs as one process.
 - The seed uses free photos from Unsplash and avatars from pravatar.cc. All names and addresses are fictional.
@@ -211,30 +213,42 @@ The API runs at `http://localhost:8000`, and the documentation is at `http://loc
 
 ### Deployment
 
-The API runs in Docker on a Linux server behind Caddy, which gets the TLS certificate.
+The API runs in Docker on a Linux server. Cloudflare proxies the traffic to Caddy, and Caddy proxies it to the API.
 
-1. Copy `backend/` to the server. Put `.env` and `secrets/gcs-service-account.json` next to `compose.yaml`.
-2. Set `CORS_ORIGINS`, `GCS_BUCKET`, `GOOGLE_CLIENT_ID` and `PUBLIC_BASE_URL` in `.env`.
-3. Create the data folder for the container user: `mkdir -p data && sudo chown 10001 data`
-4. Start the API: `docker compose up -d --build`
-5. Add a site to the Caddyfile and reload Caddy:
+1. Make the archive on your computer: `python deploy/package_backend.py --output ../airbnb-backend.tar.gz`
+2. Copy the archive to the server and extract it, for example into `/opt/airbnb-clone/backend`.
+3. Copy `deploy/oracle-api.env.example` to `.env` on the server, set the values, and run `chmod 600 .env`.
+4. Create the data folder for the container user: `mkdir -p data && sudo chown 10001 data`
+5. Start the API with one of these commands:
+   - Photos on the server disk: `docker compose up -d --build`
+   - Photos in Google Cloud Storage: put the service-account key in `secrets/gcs-service-account.json` (owner `10001`, mode `600`), then run `docker compose -f compose.yaml -f compose.gcs.yaml up -d --build`
+6. Add the site to the Caddyfile and reload Caddy. The global options make Caddy trust Cloudflare and read the visitor address from `CF-Connecting-IP`. Without them, the rate limits count Cloudflare servers instead of visitors.
 
 ```
+{
+    servers {
+        trusted_proxies static <Cloudflare IP ranges from https://www.cloudflare.com/ips/>
+        client_ip_headers CF-Connecting-IP
+    }
+}
+
 airbnb-api.example.com {
     request_body {
         max_size 10MB
     }
-    reverse_proxy 127.0.0.1:8002
+    reverse_proxy 127.0.0.1:8002 {
+        header_up X-Forwarded-For {client_ip}
+    }
 }
 ```
 
-6. Add a nightly backup to cron: `docker exec airbnb-api python -m app.backup`
+7. Add a nightly backup to cron: `docker exec airbnb-api python -m app.backup`
 
-The container runs as a user without privileges, with a read-only file system and limits on memory and CPU. It runs the migrations and adds the demo data when it starts, but only if the database is empty.
+The container runs as a user without privileges, with a read-only file system and limits on memory and CPU. When it starts, it runs the migrations. It adds the demo data only if the database is empty.
 
 ### Demo accounts
 
-All demo accounts use the password from `SEED_USER_PASSWORD`.
+These two accounts use the password from `SEED_USER_PASSWORD`. The other seeded accounts get a random password that nobody knows.
 
 - Guest: `rohan@example.com`
 - Host: `kavya@example.com`
