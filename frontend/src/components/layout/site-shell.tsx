@@ -83,7 +83,7 @@ function Header({hosting=false}:{hosting?:boolean}) {
       </>:<><button role="menuitem" onClick={()=>openAuth(undefined,undefined,"register")}><strong>Sign up</strong></button><button role="menuitem" onClick={()=>openAuth()}>Log in</button><hr/><button role="menuitem" onClick={host}>Airbnb your home</button><Link role="menuitem" href="/coming-soon">Help Centre</Link></>}</div>}
     </div>
   </div>{homepage?<div className={styles.homeSearch} aria-hidden={collapsed} inert={collapsed}><SearchBar homepage startOpen={scrolled&&searchOpen} onClose={closeSearch} onActiveChange={homeSearchActive}/></div>:!hosting&&searchOpen&&<div className="expanded-search"><SearchBar onClose={closeSearch}/></div>}</header>
-  {searchOpen&&!hosting&&<div className={`search-dimmer ${homepage?styles.homeDimmer:""}`} onClick={closeSearch} aria-hidden="true"/>}
+  {searchOpen&&!hosting&&!homepage&&<div className="search-dimmer" onClick={closeSearch} aria-hidden="true"/>}
   <Modal open={regionOpen} onClose={closeRegion} title="Language and region"><h3>Choose a language and region</h3><p className="outline-button" style={{marginTop:24}}>English (India)</p><p className="muted" style={{marginTop:24}}>Currency: ₹ INR. Other languages and currencies are coming soon.</p></Modal></>;
 }
 function Footer(){
@@ -99,6 +99,6 @@ export function SiteShell({children}:{children:ReactNode}){
   const path=usePathname();
   if(path.startsWith("/hosting/listings/"))return <>{children}</>;
   const inbox=path.startsWith("/messages"),checkout=path.startsWith("/book/"),account=path==="/account",wishlistDetail=path.startsWith("/wishlists/");
-  const className=path.startsWith("/rooms/")?"detail-shell":path.startsWith("/book/")?"checkout-shell":inbox?"inbox-shell":wishlistDetail?"wishlist-detail-shell":"";
+  const className=path==="/trips"?"trips-shell":path.startsWith("/rooms/")?"detail-shell":path.startsWith("/book/")?"checkout-shell":inbox?"inbox-shell":wishlistDetail?"wishlist-detail-shell":"";
   return <div className={`${className} ${path==="/"?styles.homeRoute:""}`}>{account?<header className={styles.accountHeader}><Link href="/" className="brand-logo" aria-label="Airbnb clone home"><Image src="/airbnb.svg" width={32} height={36} alt=""/></Link><Link href="/" className="outline-button">Done</Link></header>:checkout?<header className={styles.checkoutHeader}><Link href="/" className="brand-logo" aria-label="Airbnb clone home"><Image src="/airbnb.svg" width={32} height={36} alt=""/><span>airbnb</span></Link></header>:<Suspense fallback={<div style={{height:80,borderBottom:"1px solid var(--divider)"}}/>}><Header hosting={path.startsWith("/hosting")}/></Suspense>}<main id="main-content">{children}</main>{!inbox&&!account&&!wishlistDetail&&(checkout?<footer className={styles.checkoutFooter}><span>© {new Date().getFullYear()} Airbnb clone</span><Link href="/privacy">Privacy</Link><Link href="/terms">Terms</Link><Link href="/coming-soon">Company details</Link></footer>:<Footer/>)}<MobileTabs/></div>;
 }

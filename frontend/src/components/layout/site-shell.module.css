@@ -26,12 +26,11 @@
 .profileButton{width:40px;height:40px;border-radius:50%;overflow:hidden;background:var(--surface);display:grid;place-content:center;font-size:13px;font-weight:600}
 .profileButton img{width:40px;height:40px;object-fit:cover}
 .homeSearch{padding:14px 24px 40px;height:120px;position:relative}
-.homeDimmer{inset:200px 0 0;background:rgb(0 0 0/.25)}
 .homeHeader :global(.user-dropdown){animation:menu-in 150ms ease-out}
 @keyframes menu-in{from{opacity:0;transform:translateY(-4px)}to{opacity:1;transform:translateY(0)}}
 @media(min-width:1900px){.homeTabs{gap:36px}}
 @media(max-width:1127px){.homeHeader :global(.header-main){padding-inline:32px}.homeTabs{width:460px;gap:16px}.homeHeader :global(.host-link){display:none}.homeHeader :global(.brand-logo span){display:block}}
-@media(max-width:743px){.homeHeader :global(.header-main){height:78px;padding:0 24px;justify-content:center}.homeHeader :global(.brand-logo),.homeHeader :global(.header-actions){display:none}.homeTabs{width:auto;height:70px;position:static;transform:none;gap:20px;justify-content:center}.homeTabs button{font-size:12px;flex-direction:column;gap:0;height:66px;min-width:45px}.tabArt{height:43px;width:40px}.tabArt img{width:60px;height:60px}.homeTabs button[aria-pressed=true]:after{bottom:-1px}.homeSearch{padding:8px 24px 20px;min-height:84px}.homeDimmer{inset:162px 0 0}}
+@media(max-width:743px){.homeHeader :global(.header-main){height:78px;padding:0 24px;justify-content:center}.homeHeader :global(.brand-logo),.homeHeader :global(.header-actions){display:none}.homeTabs{width:auto;height:70px;position:static;transform:none;gap:20px;justify-content:center}.homeTabs button{font-size:12px;flex-direction:column;gap:0;height:66px;min-width:45px}.tabArt{height:43px;width:40px}.tabArt img{width:60px;height:60px}.homeTabs button[aria-pressed=true]:after{bottom:-1px}.homeSearch{padding:8px 24px 20px;min-height:84px}}
 @media(prefers-reduced-motion:reduce){.homeHeader :global(.user-dropdown){animation:none}}
 .inboxHeader :global(.header-main){height:96px;padding-inline:48px;max-width:none}.inboxHeader :global(.header-actions){gap:12px}.inboxHeader :global(.user-menu-button){height:40px;width:40px;border:0;padding:0;justify-content:center;background:var(--surface)}
 @media(max-width:743px){.inboxHeader :global(.header-main){height:72px;padding-inline:24px}}
@@ -55,6 +54,9 @@
 .compactHouse{width:24px;height:24px;display:grid;place-content:center;overflow:hidden;flex-shrink:0}.compactHouse img{width:48px;height:48px;max-width:none}
 @media(max-width:743px){.searchSurface{display:none}.homeSearch{height:84px}.homeSearch :global([data-search-bar]){border-color:var(--line);background:var(--bg);box-shadow:0 2px 8px rgb(0 0 0/.1)}.homeCollapsed .homeSearch{height:84px;padding-block:8px 20px;opacity:1;overflow:visible}.homeCollapsed .homeSearch>div{transform:none;opacity:1}.homeCollapsed .homeTabs{opacity:1;transform:none;pointer-events:auto}.homeCompact{display:none}.tabMotion{width:60px;height:60px}}
 @media(prefers-reduced-motion:reduce){.homeSearch,.homeSearch>div,.homeTabs,.searchSurface,.homeCompact,.homeCollapsed .homeCompact,.tabArt img{transition:none}.tabMotion{animation:none}.tabReady{opacity:1}}
+
+@media(min-width:1440px){.homeHeader :global(.header-main){height:96px}.homeSearch{height:104px;padding-block:6px 32px}.searchSurface{top:102px}.homeCollapsed .searchSurface,.homeCompact{top:25px}.homeCompact{transform:translate(-50%,77px) scale(1.15)}.homeCollapsed .homeSearch>div{transform:translateY(-69px) scale(.44,.697)}}
+@media(max-width:743px){.homeHeader{display:flex;flex-direction:column}.homeHeader :global(.header-main){order:2;height:68px}.homeTabs{height:68px}.homeSearch{order:1;height:68px;padding:12px 24px 0}.homeCollapsed .homeSearch{height:68px;padding:12px 24px 0}}
 
 .accountHeader{height:96px;display:flex;align-items:center;justify-content:space-between;padding:0 48px;border-bottom:1px solid var(--divider);background:var(--bg)}.accountHeader :global(.brand-logo){min-width:0}.accountHeader :global(.brand-logo img){filter:grayscale(1) brightness(0)}:global(.dark) .accountHeader :global(.brand-logo img){filter:grayscale(1) brightness(0) invert(1)}.accountHeader :global(.outline-button){border-radius:999px;padding:10px 16px;font-weight:500}@media(max-width:743px){.accountHeader{height:72px;padding-inline:24px}.accountHeader :global(.brand-logo){display:flex}}
 @media(max-width:743px){.wishlistDetailHeader{display:none}}
