@@ -1,26 +1,36 @@
-from app.database import Base, engine
 from app.models.booking import Booking, BookingStatus
-from app.models.listing import Amenity, Category, Listing, ListingImage, PropertyType, RoomType
-from app.models.review import RATING_FIELDS, Review
+from app.models.listing import (
+    APPROX_OFFSET_DEGREES,
+    Amenity,
+    Category,
+    Listing,
+    ListingImage,
+    PropertyType,
+    RoomType,
+)
+from app.models.message import Conversation, Message
+from app.models.review import LISTING_RATING_FIELDS, GuestReview, ListingReview
+from app.models.upload import Upload
 from app.models.user import User
-from app.models.wishlist import WishlistItem
+from app.models.wishlist import Wishlist, WishlistItem
 
 __all__ = [
-    "RATING_FIELDS",
+    "APPROX_OFFSET_DEGREES",
+    "LISTING_RATING_FIELDS",
     "Amenity",
     "Booking",
     "BookingStatus",
     "Category",
+    "Conversation",
+    "GuestReview",
     "Listing",
     "ListingImage",
+    "ListingReview",
+    "Message",
     "PropertyType",
-    "Review",
     "RoomType",
+    "Upload",
     "User",
+    "Wishlist",
     "WishlistItem",
-    "create_tables",
 ]
-
-
-def create_tables() -> None:
-    Base.metadata.create_all(engine)
