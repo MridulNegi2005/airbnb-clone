@@ -1,0 +1,254 @@
+import argparse
+import random
+from datetime import UTC, date, datetime, time, timedelta
+
+from sqlalchemy import select
+from sqlalchemy.orm import Session
+
+from app.config import get_settings
+from app.database import Base, SessionLocal, engine
+from app.models import (
+    Amenity,
+    Booking,
+    BookingStatus,
+    Category,
+    Listing,
+    ListingImage,
+    Review,
+    RoomType,
+    User,
+    WishlistItem,
+    create_tables,
+)
+from app.security import hash_password
+from app.seed_data import (
+    AMENITIES,
+    BASE_AMENITIES,
+    CATEGORIES,
+    DEMO_GUEST_EMAIL,
+    GUESTS,
+    HOSTS,
+    LISTINGS,
+    PHOTOS,
+    REVIEW_COMMENTS,
+    UNSPLASH,
+    ListingSeed,
+    PersonSeed,
+)
+from app.services.bookings import price_stay
+
+# Listing indexes where the demo guest gets a specific trip, so every Trips state is visible.
+DEMO_UPCOMING = {0, 11, 21}
+DEMO_CANCELLED = {8}
+DEMO_AWAITING_REVIEW = {3}
+DEMO_REVIEWED = {5, 12, 19, 26}
+DEMO_WISHLIST = (1, 8, 13, 21, 29)
+
+_ROOM_DETAILS = {
+    RoomType.ENTIRE_HOME: "You will have the whole place to yourself.",
+    RoomType.PRIVATE_ROOM: "You will have a private room. Some common areas are shared.",
+    RoomType.SHARED_ROOM: "You will sleep in a shared room with other guests.",
+}
+
+
+def _user(person: PersonSeed, password_hash: str, joined: datetime) -> User:
+    return User(
+        name=person.name,
+        email=person.email,
+        password_hash=password_hash,
+        avatar_url=f"https://i.pravatar.cc/300?img={person.avatar}",
+        about=person.about,
+        is_superhost=person.is_superhost,
+        created_at=joined,
+    )
+
+
+def _photo_urls(seed: ListingSeed, index: int) -> list[str]:
+    def pick(kind: str, offset: int = 0) -> str:
+        pool = PHOTOS[kind]
+        return UNSPLASH.format(pool[(index + offset) % len(pool)])
+
+    return [
+        pick(seed.exterior),
+        pick("living"),
+        pick("bedroom"),
+        pick("kitchen"),
+        pick("living", 7),
+        pick("bath"),
+        pick("bedroom", 5),
+    ]
+
+
+def _description(seed: ListingSeed) -> str:
+    return (
+        f"{seed.summary}\n\n"
+        f"The space\n{_ROOM_DETAILS[seed.room_type]} The home sleeps up to {seed.guests} "
+        f"guests and has fast wifi and fresh linens.\n\n"
+        f"Getting around\nThe neighbourhood is easy to explore on foot, and your host can "
+        f"arrange airport transfers in {seed.city}."
+    )
+
+
+def _listing(
+    seed: ListingSeed,
+    index: int,
+    host: User,
+    amenities: dict[str, Amenity],
+    categories: dict[str, Category],
+) -> Listing:
+    return Listing(
+        host=host,
+        title=seed.title,
+        description=_description(seed),
+        property_type=seed.property_type,
+        room_type=seed.room_type,
+        address=seed.address,
+        city=seed.city,
+        country=seed.country,
+        latitude=seed.latitude,
+        longitude=seed.longitude,
+        price_per_night=seed.price,
+        cleaning_fee=seed.cleaning_fee,
+        max_guests=seed.guests,
+        bedrooms=seed.bedrooms,
+        beds=seed.beds,
+        bathrooms=seed.bathrooms,
+        images=[
+            ListingImage(url=url, position=position)
+            for position, url in enumerate(_photo_urls(seed, index))
+        ],
+        amenities=[amenities[name] for name in {*BASE_AMENITIES, *seed.amenities}],
+        categories=[categories[slug] for slug in seed.categories],
+    )
+
+
+def _booking(listing: Listing, guest: User, check_in: date, nights: int, guests: int) -> Booking:
+    price = price_stay(listing, nights)
+    return Booking(
+        listing=listing,
+        guest=guest,
+        check_in=check_in,
+        check_out=check_in + timedelta(days=nights),
+        guests=guests,
+        nightly_rate=price.nightly_rate,
+        cleaning_fee=price.cleaning_fee,
+        service_fee=price.service_fee,
+        total=price.total,
+    )
+
+
+def _review(rng: random.Random, check_out: date) -> Review:
+    overall = rng.choices([5, 4, 3], weights=[82, 15, 3])[0]
+
+    def near_overall() -> int:
+        return max(1, min(5, overall + rng.choice([0, 0, 0, 0, -1])))
+
+    written = datetime.combine(check_out + timedelta(days=rng.randint(1, 5)), time(10), UTC)
+    return Review(
+        rating=overall,
+        cleanliness=near_overall(),
+        accuracy=near_overall(),
+        check_in=near_overall(),
+        communication=near_overall(),
+        location=near_overall(),
+        value=near_overall(),
+        comment=rng.choice(REVIEW_COMMENTS),
+        created_at=written,
+    )
+
+
+def _stays(
+    rng: random.Random, index: int, listing: Listing, others: list[User], demo: User
+) -> list[Booking]:
+    today = date.today()
+    stays: list[Booking] = []
+
+    cursor = today - timedelta(days=rng.randint(240, 330))
+    while True:
+        nights = rng.randint(2, 6)
+        if cursor + timedelta(days=nights) >= today:
+            break
+        party = rng.randint(1, listing.max_guests)
+        stays.append(_booking(listing, rng.choice(others), cursor, nights, party))
+        cursor += timedelta(days=nights + rng.randint(4, 30))
+
+    if index in DEMO_REVIEWED:
+        stays[0].guest = demo
+    if index in DEMO_AWAITING_REVIEW:
+        stays[-1].guest = demo
+    reviewed = stays[:-1] if index in DEMO_AWAITING_REVIEW else stays
+    for stay in reviewed:
+        stay.review = _review(rng, stay.check_out)
+
+    cursor = today + timedelta(days=rng.randint(5, 20))
+    for position in range(rng.randint(1, 2)):
+        nights = rng.randint(2, 5)
+        guest = demo if position == 0 and index in DEMO_UPCOMING | DEMO_CANCELLED else None
+        stay = _booking(listing, guest or rng.choice(others), cursor, nights, 1)
+        if position == 0 and index in DEMO_CANCELLED:
+            stay.status = BookingStatus.CANCELLED
+        stays.append(stay)
+        cursor += timedelta(days=nights + rng.randint(3, 15))
+
+    return stays
+
+
+def seed(db: Session, password: str) -> None:
+    rng = random.Random(2024)
+    now = datetime.now(UTC)
+    # One shared hash keeps seeding fast; every demo account uses the same password anyway.
+    password_hash = hash_password(password)
+
+    hosts = [
+        _user(person, password_hash, now - timedelta(days=rng.randint(700, 3000)))
+        for person in HOSTS
+    ]
+    guests = [
+        _user(person, password_hash, now - timedelta(days=rng.randint(60, 900)))
+        for person in GUESTS
+    ]
+    demo = next(guest for guest in guests if guest.email == DEMO_GUEST_EMAIL)
+    others = [guest for guest in guests if guest is not demo]
+
+    amenities = {name: Amenity(name=name, icon=icon) for name, icon in AMENITIES}
+    categories = {
+        slug: Category(slug=slug, name=name, icon=icon) for slug, name, icon in CATEGORIES
+    }
+    listings = [
+        _listing(seed, index, hosts[seed.host], amenities, categories)
+        for index, seed in enumerate(LISTINGS)
+    ]
+    db.add_all([*hosts, *guests, *amenities.values(), *categories.values(), *listings])
+
+    for index, listing in enumerate(listings):
+        db.add_all(_stays(rng, index, listing, others, demo))
+    db.flush()
+    db.add_all(
+        WishlistItem(user_id=demo.id, listing_id=listings[index].id) for index in DEMO_WISHLIST
+    )
+
+
+def main() -> None:
+    parser = argparse.ArgumentParser(description="Fill the database with demo data.")
+    parser.add_argument("--reset", action="store_true", help="drop all tables before seeding")
+    args = parser.parse_args()
+
+    password = get_settings().seed_user_password
+    if not password:
+        raise SystemExit("Set SEED_USER_PASSWORD in backend/.env before seeding.")
+
+    if args.reset:
+        Base.metadata.drop_all(engine)
+    create_tables()
+
+    with SessionLocal() as db:
+        if db.scalar(select(User.id).limit(1)) is not None:
+            print("Database already contains data. Run with --reset to reseed.")
+            return
+        seed(db, password)
+        db.commit()
+    print(f"Seeded {len(HOSTS) + len(GUESTS)} users and {len(LISTINGS)} listings.")
+
+
+if __name__ == "__main__":
+    main()
