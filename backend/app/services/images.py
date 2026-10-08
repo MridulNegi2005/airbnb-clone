@@ -1,3 +1,5 @@
+import threading
+import warnings
 from dataclasses import dataclass
 from io import BytesIO
 
@@ -7,8 +9,13 @@ from PIL import Image, ImageOps, UnidentifiedImageError
 _ACCEPTED_FORMATS = {"JPEG", "PNG", "WEBP"}
 _WEBP_QUALITY = 82
 
-# Pillow refuses larger images, which protects against decompression bombs.
-Image.MAX_IMAGE_PIXELS = 40_000_000
+# 16 megapixels (a 4000 x 4000 photo) is far more than a 2048 px output needs. A small,
+# highly compressed file can declare huge dimensions; Pillow checks them on open, before
+# decoding, and the warning it gives between 1x and 2x this limit is turned into an error.
+Image.MAX_IMAGE_PIXELS = 16_000_000
+
+# Decoding is memory-heavy; one image at a time keeps the container inside its memory limit.
+_decode_slot = threading.Semaphore(1)
 
 
 @dataclass(frozen=True)
@@ -25,19 +32,27 @@ def process_image(raw: bytes, max_dimension: int) -> ProcessedImage:
     Re-encoding drops every metadata block, so EXIF data such as GPS coordinates never
     reaches storage, and only real pixels from a known format are ever served.
     """
-    try:
-        with Image.open(BytesIO(raw)) as source:
-            if source.format not in _ACCEPTED_FORMATS:
-                raise _unsupported()
-            source.load()
-            image = ImageOps.exif_transpose(source)
-            image.thumbnail((max_dimension, max_dimension))
-            if image.mode not in ("RGB", "RGBA"):
-                image = image.convert("RGBA" if "A" in image.getbands() else "RGB")
-            output = BytesIO()
-            image.save(output, "WEBP", quality=_WEBP_QUALITY, method=4)
-    except (UnidentifiedImageError, Image.DecompressionBombError, OSError, SyntaxError):
-        raise _unsupported() from None
+    with _decode_slot, warnings.catch_warnings():
+        warnings.simplefilter("error", Image.DecompressionBombWarning)
+        try:
+            with Image.open(BytesIO(raw)) as source:
+                if source.format not in _ACCEPTED_FORMATS:
+                    raise _unsupported()
+                # Let JPEGs decode at reduced scale, and shrink before rotating, so no
+                # full-size copy of the image is ever made.
+                source.draft("RGB", (max_dimension, max_dimension))
+                source.thumbnail((max_dimension, max_dimension))
+                image = ImageOps.exif_transpose(source)
+                if image.mode not in ("RGB", "RGBA"):
+                    image = image.convert("RGBA" if "A" in image.getbands() else "RGB")
+                output = BytesIO()
+                image.save(output, "WEBP", quality=_WEBP_QUALITY, method=4)
+        except (Image.DecompressionBombError, Image.DecompressionBombWarning):
+            raise HTTPException(
+                status.HTTP_413_CONTENT_TOO_LARGE, detail="Image is larger than 16 megapixels"
+            ) from None
+        except (UnidentifiedImageError, OSError, SyntaxError):
+            raise _unsupported() from None
     return ProcessedImage(output.getvalue(), image.width, image.height)
 
 
