@@ -1,7 +1,8 @@
 """End-to-end smoke test against a running API.
 
-Read-only by default. With --write it also signs up a throwaway user and walks through the
-main flows: wishlist, upload, booking, cancellation and messaging. It uses only the standard
+Read-only by default. With --write it also signs up a throwaway host and guest and walks
+through every main flow on the host's own new listing, which it archives at the end, so it is
+safe to run on production. It uses only the standard
 library and Pillow, so it runs anywhere the backend runs.
 
     python scripts/smoke_test.py --base-url https://airbnb-api.example.com --write
@@ -143,70 +144,36 @@ def read_checks(api: Client) -> dict[str, Any]:
     return state
 
 
-def write_checks(api: Client, state: dict[str, Any]) -> None:
-    listing_id = state["listing"]["id"]
-    email = f"smoke-{secrets.token_hex(6)}@example.com"
+def write_checks(base_url: str, state: dict[str, Any]) -> None:
+    """Throwaway host and guest accounts that only ever touch the host's own listing,
+    so the flows can run on production without changing any demo data."""
+    host, guest = Client(base_url), Client(base_url)
+    listing: dict[str, Any] = {}
 
     def sign_up() -> None:
-        auth = api.request(
-            "POST",
-            "/api/auth/register",
-            {"name": "Smoke Test", "email": email, "password": secrets.token_urlsafe(16)},
-            expect=201,
-        )
-        api.token = auth["access_token"]
-        assert api.request("GET", "/api/auth/me")["email"] == email
-
-    def wishlist() -> None:
-        created = api.request("POST", "/api/wishlists", {"name": "Smoke"}, expect=201)
-        api.request("PUT", f"/api/wishlists/{created['id']}/listings/{listing_id}", expect=204)
-        saved = api.request("GET", "/api/wishlists/saved")
-        assert {"wishlist_id": created["id"], "listing_id": listing_id} in saved
+        for client, role in ((host, "host"), (guest, "guest")):
+            email = f"smoke-{role}-{secrets.token_hex(6)}@example.com"
+            auth = client.request(
+                "POST",
+                "/api/auth/register",
+                {"name": f"Smoke {role}", "email": email, "password": secrets.token_urlsafe(16)},
+                expect=201,
+            )
+            client.token = auth["access_token"]
+            assert client.request("GET", "/api/auth/me")["email"] == email
 
     def upload() -> None:
         body, content_type = _multipart("file", "smoke.png", _png(), "image/png")
-        result = api.request(
+        result = host.request(
             "POST", "/api/uploads", raw=body, content_type=content_type, expect=201
         )
         assert result["url"].endswith(".webp")
-        api.request("PATCH", "/api/users/me", {"avatar_url": result["url"]})
+        host.request("PATCH", "/api/users/me", {"avatar_url": result["url"]})
         state["photo_url"] = result["url"]
 
-    def book_and_cancel() -> None:
-        for _ in range(5):
-            start = date.today() + timedelta(days=200 + secrets.randbelow(150))
-            stay = {
-                "listing_id": listing_id,
-                "check_in": str(start),
-                "check_out": str(start + timedelta(days=1)),
-                "guests": 1,
-            }
-            quote = api.request(
-                "GET",
-                f"/api/listings/{listing_id}/quote?check_in={stay['check_in']}"
-                f"&check_out={stay['check_out']}&guests=1",
-            )
-            if quote["available"]:
-                booking = api.request("POST", "/api/bookings", stay, expect=201)
-                api.request("POST", "/api/bookings", stay, expect=409)
-                cancelled = api.request("POST", f"/api/bookings/{booking['id']}/cancel")
-                assert cancelled["status"] == "cancelled"
-                return
-        raise SmokeError("no free date found for the booking check")
-
-    def message() -> None:
-        thread = api.request(
-            "POST",
-            "/api/conversations",
-            {"listing_id": listing_id, "body": "Smoke test"},
-            expect=201,
-        )
-        messages = api.request("GET", f"/api/conversations/{thread['id']}/messages")
-        assert messages[-1]["body"] == "Smoke test"
-
-    def host_flow() -> None:
+    def create_listing() -> None:
         area = state["area"]
-        listing = api.request(
+        created = host.request(
             "POST",
             "/api/listings",
             {
@@ -231,30 +198,108 @@ def write_checks(api: Client, state: dict[str, Any]) -> None:
             },
             expect=201,
         )
-        base = f"/api/listings/{listing['id']}"
+        listing.update(created)
+        assert "address" not in guest.request("GET", f"/api/listings/{created['id']}")
+
+    def pricing_and_stay_limits() -> None:
+        base = f"/api/listings/{listing['id']}/quote"
         start = date.today() + timedelta(days=30)
-        week = api.request(
-            "GET", f"{base}/quote?check_in={start}&check_out={start + timedelta(days=7)}"
+        week = guest.request(
+            "GET", f"{base}?check_in={start}&check_out={start + timedelta(days=7)}"
         )
         assert week["discount"] == 1400, week
-        one_night = f"{base}/quote?check_in={start}&check_out={start + timedelta(days=1)}"
-        api.request("GET", one_night, expect=422)
+        guest.request(
+            "GET", f"{base}?check_in={start}&check_out={start + timedelta(days=1)}", expect=422
+        )
 
+    def host_calendar() -> None:
         calendar = f"/api/host/listings/{listing['id']}/blocked-dates"
-        period = api.request(
+        start = date.today() + timedelta(days=60)
+        period = host.request(
             "POST",
             calendar,
             {"start_date": str(start), "end_date": str(start + timedelta(days=3))},
             expect=201,
         )
-        assert {"check_in": str(start), "check_out": str(start + timedelta(days=3))} in (
-            api.request("GET", f"{base}/booked-dates")
-        )
-        api.request("DELETE", f"{calendar}/{period['id']}", expect=204)
-        api.request("DELETE", base, expect=204)
-        api.request("GET", base, expect=404)
+        booked = guest.request("GET", f"/api/listings/{listing['id']}/booked-dates")
+        assert {"check_in": str(start), "check_out": str(start + timedelta(days=3))} in booked
+        stay = {
+            "listing_id": listing["id"],
+            "check_in": str(start),
+            "check_out": str(start + timedelta(days=2)),
+        }
+        guest.request("POST", "/api/bookings", stay, expect=409)
+        host.request("DELETE", f"{calendar}/{period['id']}", expect=204)
 
-    for check in (sign_up, wishlist, upload, book_and_cancel, message, host_flow):
+    def wishlist() -> None:
+        created = guest.request("POST", "/api/wishlists", {"name": "Smoke"}, expect=201)
+        path = f"/api/wishlists/{created['id']}/listings/{listing['id']}"
+        guest.request("PUT", path, expect=204)
+        saved = guest.request("GET", "/api/wishlists/saved")
+        assert {"wishlist_id": created["id"], "listing_id": listing["id"]} in saved
+        guest.request("DELETE", f"/api/wishlists/{created['id']}", expect=204)
+
+    def book_and_cancel() -> None:
+        start = date.today() + timedelta(days=90)
+        stay = {
+            "listing_id": listing["id"],
+            "check_in": str(start),
+            "check_out": str(start + timedelta(days=2)),
+            "guests": 1,
+        }
+        booking = guest.request("POST", "/api/bookings", stay, expect=201)
+        assert booking["listing"]["address"] == "1 Test Road"
+        guest.request("POST", "/api/bookings", stay, expect=409)
+        host.request("POST", "/api/bookings", stay, expect=403)
+        reservations = host.request("GET", "/api/host/bookings")
+        assert booking["id"] in [reservation["id"] for reservation in reservations]
+        cancelled = guest.request("POST", f"/api/bookings/{booking['id']}/cancel")
+        assert cancelled["status"] == "cancelled"
+
+    def messaging() -> None:
+        thread = guest.request(
+            "POST",
+            "/api/conversations",
+            {"listing_id": listing["id"], "body": "Smoke test question"},
+            expect=201,
+        )
+        assert host.request("GET", "/api/conversations/unread-count")["count"] == 1
+        host.request(
+            "POST",
+            f"/api/conversations/{thread['id']}/messages",
+            {"body": "Smoke reply"},
+            expect=201,
+        )
+        host.request("POST", f"/api/conversations/{thread['id']}/read", expect=204)
+        assert host.request("GET", "/api/conversations/unread-count")["count"] == 0
+        messages = guest.request("GET", f"/api/conversations/{thread['id']}/messages")
+        assert [message["body"] for message in messages] == ["Smoke test question", "Smoke reply"]
+
+    def profiles() -> None:
+        host.request("PATCH", "/api/users/me", {"about": "Smoke host", "languages": ["English"]})
+        host.request("POST", "/api/users/me/identity-verification")
+        profile = guest.request("GET", f"/api/users/{listing['host']['id']}")
+        assert profile["is_identity_verified"] is True
+        assert profile["listing_count"] == 1
+        assert "email" not in profile
+
+    def archive_listing() -> None:
+        path = f"/api/listings/{listing['id']}"
+        host.request("DELETE", path, expect=204)
+        guest.request("GET", path, expect=404)
+
+    for check in (
+        sign_up,
+        upload,
+        create_listing,
+        pricing_and_stay_limits,
+        host_calendar,
+        wishlist,
+        book_and_cancel,
+        messaging,
+        profiles,
+        archive_listing,
+    ):
         _run(check)
 
 
@@ -279,7 +324,7 @@ def main() -> None:
     api = Client(args.base_url)
     state = read_checks(api)
     if args.write:
-        write_checks(api, state)
+        write_checks(args.base_url, state)
     print("Smoke test passed.")
     sys.exit(0)
 
