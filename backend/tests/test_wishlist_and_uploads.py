@@ -32,3 +32,17 @@ def test_upload_accepts_images_only(client: TestClient, host: Headers) -> None:
     disguised = {"file": ("photo.png", b"<script>alert(1)</script>", "image/png")}
     assert client.post("/api/uploads", files=disguised, headers=host).status_code == 415
     assert client.post("/api/uploads", files=files).status_code == 401
+
+
+def test_uploaded_files_are_served_with_nosniff(client: TestClient, host: Headers) -> None:
+    files = {"file": ("photo.png", PNG_BYTES, "image/png")}
+    url = client.post("/api/uploads", files=files, headers=host).json()["url"]
+    served = client.get(url)
+    assert served.headers["x-content-type-options"] == "nosniff"
+    assert served.headers["content-security-policy"] == "default-src 'none'"
+
+
+def test_oversized_upload_is_rejected_before_parsing(client: TestClient, host: Headers) -> None:
+    headers = {**host, "Content-Length": str(50 * 1024 * 1024)}
+    response = client.post("/api/uploads", content=b"x", headers=headers)
+    assert response.status_code == 413
