@@ -13,8 +13,8 @@ function ReviewCard({ review, full = false, position }: { review: ProfileReview;
   return <article aria-label={position} aria-roledescription={position ? "slide" : undefined} className={`${styles.review} ${full ? styles.fullReview : ""}`}><Link href={`/users/${review.author.id}`} className={styles.reviewAuthor}><ProfileAvatar user={review.author} size={44} /><div><strong>{review.author.name}</strong><span>{new Intl.DateTimeFormat("en-IN", { month: "long", year: "numeric" }).format(new Date(review.created_at))}</span></div></Link><div className={styles.reviewRating} aria-label={`${review.rating} out of 5 stars`}>{Array.from({ length: 5 }, (_, index) => <Star key={index} size={12} fill={index < review.rating ? "currentColor" : "none"} />)}</div><p className={full ? styles.plainText : styles.reviewComment}>{review.comment}</p><Link href={`/rooms/${review.listing.id}`} className={styles.reviewListing}>{review.listing.title}</Link></article>;
 }
 
-export function ProfileReviews({ id, name }: { id: number; name: string }) {
-  const [about, setAbout] = useState<"host" | "guest">("host"), [open, setOpen] = useState(false), [page, setPage] = useState(1);
+export function ProfileReviews({ id, name, defaultAbout = "host" }: { id: number; name: string; defaultAbout?: "host" | "guest" }) {
+  const [about, setAbout] = useState<"host" | "guest">(defaultAbout), [open, setOpen] = useState(false), [page, setPage] = useState(1);
   const track = useRef<HTMLDivElement>(null);
   const reviews = useQuery({ queryKey: queryKeys.userReviews(id, about), queryFn: ({ signal }) => getUserReviews(id, about, 1, signal) });
   const all = useQuery({ queryKey: queryKeys.userReviews(id, about, page), queryFn: ({ signal }) => getUserReviews(id, about, page, signal), enabled: open });

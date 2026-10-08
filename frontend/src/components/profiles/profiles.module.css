@@ -16,7 +16,7 @@
 @media(prefers-reduced-motion:reduce){.publicPage,.editorPage,.verifyPage,.state,.reviewTrack,.allReviews,.verifySuccess{animation:none}.tabs button,.avatarEdit,.languageButton,.chips button,.demoUpload,.field input,.field textarea{transition:none}}
 
 /* Account settings and profile edit use the flat rows of the desktop reference. */
-.accountPage{display:grid;grid-template-columns:minmax(320px,31.25%) minmax(0,1fr);min-height:calc(100dvh - 80px)}
+.accountPage{display:grid;grid-template-columns:minmax(320px,31.25%) minmax(0,1fr);min-height:calc(100dvh - 96px)}
 .accountNavigation{border-right:1px solid var(--divider);padding:40px 64px;align-self:stretch}
 .accountNavigation h1{font-size:28px;line-height:1.2;margin-bottom:24px}
 .accountNavigation nav{display:grid;gap:4px}

@@ -2,6 +2,7 @@
 import { useRef, useState, type ChangeEvent, type FormEvent } from "react";
 import { useQueryClient } from "@tanstack/react-query";
 import Link from "next/link";
+import { useRouter } from "next/navigation";
 import { BriefcaseBusiness, Camera, ChevronLeft, ChevronRight, Languages, MapPin, Pencil, ShieldCheck, UserRound } from "lucide-react";
 import { toast } from "sonner";
 import { queryKeys, updateProfile, uploadPhoto } from "@/lib/api";
@@ -22,11 +23,12 @@ export function ProfileEditor() {
 }
 
 function Editor({ user }: { user: UserPrivate }) {
-  const { updateUser } = useAuth(), client = useQueryClient(), fileInput = useRef<HTMLInputElement>(null), cooldown = useProfileCooldown();
+  const { updateUser } = useAuth(), client = useQueryClient(), router = useRouter(), fileInput = useRef<HTMLInputElement>(null), cooldown = useProfileCooldown();
   const [draft, setDraft] = useState({ name: user.name, work: user.work ?? "", lives_in: user.lives_in ?? "", about: user.about ?? "", languages: user.languages ?? [] });
   const [editing, setEditing] = useState<ProfileField | null>(null);
   const [modalField, setModalField] = useState<ProfileField>("name");
-  function openField(field: ProfileField) { setModalField(field); setEditing(field); }
+  const [fieldSession, setFieldSession] = useState(0);
+  function openField(field: ProfileField) { setModalField(field); setFieldSession(value => value + 1); setEditing(field); }
   const [languagesOpen, setLanguagesOpen] = useState(false), [pending, setPending] = useState(false), [uploading, setUploading] = useState(false), [error, setError] = useState("");
   function changes(): ProfileUpdate {
     const body: ProfileUpdate = {};
@@ -37,9 +39,10 @@ function Editor({ user }: { user: UserPrivate }) {
   }
   const dirty = Object.keys(changes()).length > 0, busy = pending || uploading || cooldown.remaining > 0;
   async function save(event: FormEvent<HTMLFormElement>) {
-    event.preventDefault(); const body = changes(); if (!Object.keys(body).length || busy) return;
+    event.preventDefault(); if (busy) return; const body = changes();
+    if (!Object.keys(body).length) { router.push(`/users/${user.id}`); return; }
     setPending(true); setError("");
-    try { const updated = await updateProfile(body); updateUser(updated); setDraft({ name: updated.name, work: updated.work ?? "", lives_in: updated.lives_in ?? "", about: updated.about ?? "", languages: updated.languages ?? [] }); await client.invalidateQueries({ queryKey: queryKeys.profile(updated.id) }); toast.success("Profile updated"); }
+    try { const updated = await updateProfile(body); updateUser(updated); setDraft({ name: updated.name, work: updated.work ?? "", lives_in: updated.lives_in ?? "", about: updated.about ?? "", languages: updated.languages ?? [] }); await client.invalidateQueries({ queryKey: queryKeys.profile(updated.id) }); toast.success("Profile updated"); router.push(`/users/${updated.id}`); }
     catch (reason) { cooldown.capture(reason); setError(reason instanceof Error ? reason.message : "Your profile couldn't be saved. Try again."); }
     finally { setPending(false); }
   }
@@ -72,9 +75,9 @@ function Editor({ user }: { user: UserPrivate }) {
         <Link href="/account/verify" className={styles.verificationLink}><ShieldCheck size={24} /><div><strong>{user.is_identity_verified ? "Identity verified" : "Verify your identity"}</strong><span>{user.is_identity_verified ? "Your identity badge appears on your profile." : "Add a verified badge to your profile with our demo flow."}</span></div><ChevronRight size={20} /></Link>
         {error && <p role="alert" className="error-text">{error}</p>}
       </div>
-      <div className={styles.editorFooter}><span className="muted small">{cooldown.remaining > 0 ? `Try again in ${cooldown.remaining} seconds` : dirty ? "You have unsaved changes" : ""}</span><button type="submit" className="dark-button" disabled={busy || !dirty || !draft.name.trim()}>{pending ? "Saving…" : "Done"}</button></div>
+      <div className={styles.editorFooter}><span className="muted small">{cooldown.remaining > 0 ? `Try again in ${cooldown.remaining} seconds` : dirty ? "You have unsaved changes" : ""}</span><button type="submit" className="dark-button" disabled={busy || !draft.name.trim()}>{pending ? "Saving…" : "Done"}</button></div>
     </form>
-    <ProfileFieldModal key={modalField} open={editing !== null} field={modalField} value={draft[modalField]} onClose={() => setEditing(null)} onSave={value => { setDraft(previous => ({ ...previous, [modalField]: value })); setEditing(null); }} />
+    <ProfileFieldModal key={`${modalField}-${fieldSession}`} open={editing !== null} field={modalField} value={draft[modalField]} onClose={() => setEditing(null)} onSave={value => { setDraft(previous => ({ ...previous, [modalField]: value })); setEditing(null); }} />
     <LanguagesModal open={languagesOpen} selected={draft.languages} onClose={() => setLanguagesOpen(false)} onSave={selected => { setDraft(value => ({ ...value, languages: selected })); setLanguagesOpen(false); }} />
   </div>;
 }
