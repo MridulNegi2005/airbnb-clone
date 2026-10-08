@@ -3,8 +3,10 @@
 A full-stack clone of the Airbnb web application for stays in Bengaluru and the nearby weekend getaways. Guests search on a map, examine a listing, book a date range, message the host and review the stay. Hosts create listings with photos, manage reservations and review their guests. Each booking blocks its dates, so two guests cannot book the same night.
 
 - **Backend:** Python, FastAPI, SQLAlchemy 2, Alembic and SQLite (`backend/`)
-- **Frontend:** Next.js with TypeScript (`frontend/`)
+- **Frontend:** Next.js 16, React 19 and TypeScript, deployed on Cloudflare Workers (`frontend/`)
 - **Cloud services:** Google Maps Platform, Google Sign-In and Google Cloud Storage, all inside their free tiers
+
+**Live demo:** https://airbnb.mridulnegi.dev (API: https://airbnb-api.mridulnegi.dev, documentation at `/docs`)
 
 ## Features
 
@@ -61,6 +63,26 @@ Other modules:
 - `app/storage.py` saves images to Google Cloud Storage, or to a local folder during development.
 - `migrations/` contains the Alembic migrations. The migrations are the source of the database schema.
 - `app/seed.py`, `app/seed_content.py` and `app/seed_data.py` fill the database with demo data.
+
+### Frontend
+
+The frontend is a Next.js App Router application. Each route renders a feature component, and each feature component gets its data through React Query.
+
+| Folder | Responsibility |
+| --- | --- |
+| `src/app/` | Routes: explore (`/`), listing (`/rooms/[id]`), checkout (`/book/[id]`), trips, wishlists, messages, profiles (`/users/[id]`, `/account`), hosting, privacy and terms. |
+| `src/components/` | UI grouped by feature: explore, search, listing detail, booking, trips, hosting, wishlists, messages, profiles, maps and shared UI parts. |
+| `src/hooks/` | Data hooks for listings, search state, availability, wishlists and unread messages. |
+| `src/lib/` | The typed API client (`api.ts`), token storage, formatting, dates, pricing and search parameters. |
+| `src/providers/` | Authentication, wishlist and React Query providers. |
+| `src/types/` | TypeScript types that match the API contract. |
+
+Other parts:
+
+- **Maps:** `@vis.gl/react-google-maps` with Advanced Markers for price pins. The map and the address search are limited to the service area that the API returns.
+- **Sign-in:** Google Identity Services gives an ID token, and the API checks it. The API token is kept in the browser and sent only to the API.
+- **Security headers:** `next.config.ts` sets a Content Security Policy, `nosniff`, a referrer policy and a permissions policy for all routes.
+- **Images:** `next/image` optimizes photos only from known hosts. Photos from other https hosts load directly in the browser.
 
 ### Booking integrity
 
@@ -211,7 +233,22 @@ python scripts/smoke_test.py --base-url http://localhost:8000 --write
 
 The API runs at `http://localhost:8000`, and the documentation is at `http://localhost:8000/docs`. To delete all data and seed again, run `python -m app.seed --reset`.
 
-### Deployment
+### Frontend
+
+1. Go to the frontend folder: `cd frontend`
+2. Install the packages: `npm install`
+3. Copy `.env.example` to `.env.local`, and set the values:
+   - `NEXT_PUBLIC_API_URL`: the API address, for example `http://localhost:8000`
+   - `NEXT_PUBLIC_GOOGLE_MAPS_API_KEY` and `NEXT_PUBLIC_GOOGLE_MAPS_MAP_ID`: a Maps browser key and a Map ID
+   - `NEXT_PUBLIC_GOOGLE_CLIENT_ID`: the OAuth web client ID for Google sign-in
+   - `NEXT_PUBLIC_CONTACT_EMAIL`: the contact address on the privacy page
+4. Start the development server: `npm run dev`
+
+The site runs at `http://localhost:3000`. To check the code, run `npm run lint` and `npm run typecheck`.
+
+To deploy the site to Cloudflare Workers, run `npm run deploy`. The OpenNext adapter builds the site, and Wrangler uploads it. `wrangler.jsonc` sets the custom domain.
+
+### Backend deployment
 
 The API runs in Docker on a Linux server. Cloudflare proxies the traffic to Caddy, and Caddy proxies it to the API.
 
