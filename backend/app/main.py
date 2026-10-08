@@ -9,16 +9,27 @@ from fastapi.responses import JSONResponse
 from fastapi.staticfiles import StaticFiles
 
 from app.config import get_settings
-from app.models import create_tables
-from app.routers import auth, bookings, catalog, host, listings, uploads, wishlist
+from app.rate_limit import client_key, global_limiter
+from app.routers import (
+    auth,
+    bookings,
+    catalog,
+    conversations,
+    host,
+    listings,
+    uploads,
+    users,
+    wishlists,
+)
 from app.security import dummy_password_hash
 
 _MULTIPART_OVERHEAD_BYTES = 64 * 1024
 
+Next = Callable[[Request], Awaitable[Response]]
+
 
 @asynccontextmanager
 async def lifespan(_app: FastAPI) -> AsyncIterator[None]:
-    create_tables()
     dummy_password_hash()
     yield
 
@@ -36,9 +47,17 @@ async def validation_error_handler(_request: Request, exc: RequestValidationErro
     return JSONResponse({"detail": errors}, status_code=status.HTTP_422_UNPROCESSABLE_CONTENT)
 
 
-async def guard_uploads(
-    request: Request, call_next: Callable[[Request], Awaitable[Response]]
-) -> Response:
+async def limit_requests(request: Request, call_next: Next) -> Response:
+    if _route_path(request).startswith("/api/") and not global_limiter.allow(client_key(request)):
+        return JSONResponse(
+            {"detail": "Too many requests. Try again in a minute."},
+            status_code=status.HTTP_429_TOO_MANY_REQUESTS,
+            headers={"Retry-After": str(global_limiter.window_seconds)},
+        )
+    return await call_next(request)
+
+
+async def guard_uploads(request: Request, call_next: Next) -> Response:
     # Reject oversized uploads before the multipart parser spools the body to disk.
     path = _route_path(request)
     if request.method == "POST" and path == "/api/uploads":
@@ -54,7 +73,7 @@ async def guard_uploads(
             )
 
     response = await call_next(request)
-    if path.startswith("/uploads/"):
+    if path.startswith("/media/"):
         response.headers["X-Content-Type-Options"] = "nosniff"
         response.headers["Content-Security-Policy"] = "default-src 'none'"
     return response
@@ -62,23 +81,37 @@ async def guard_uploads(
 
 def create_app() -> FastAPI:
     settings = get_settings()
-    upload_dir = Path(settings.upload_dir)
-    upload_dir.mkdir(parents=True, exist_ok=True)
 
-    app = FastAPI(title="Airbnb Clone API", version="1.0.0", lifespan=lifespan)
+    app = FastAPI(title="Airbnb Clone API", version="2.0.0", lifespan=lifespan)
     app.add_exception_handler(RequestValidationError, validation_error_handler)
-    # Registered before CORS so that CORS wraps it and error responses still carry CORS headers.
+    # Registered before CORS so that CORS wraps them and their errors still carry CORS headers.
     app.middleware("http")(guard_uploads)
+    app.middleware("http")(limit_requests)
     app.add_middleware(
         CORSMiddleware,
         allow_origins=settings.cors_origins,
-        allow_methods=["GET", "POST", "PUT", "DELETE"],
+        allow_methods=["GET", "POST", "PUT", "PATCH", "DELETE"],
         allow_headers=["Authorization", "Content-Type"],
+        expose_headers=["Retry-After"],
     )
 
-    for module in (auth, catalog, listings, bookings, wishlist, host, uploads):
+    for module in (
+        auth,
+        catalog,
+        listings,
+        bookings,
+        wishlists,
+        host,
+        uploads,
+        users,
+        conversations,
+    ):
         app.include_router(module.router, prefix="/api")
-    app.mount("/uploads", StaticFiles(directory=upload_dir), name="uploads")
+
+    if settings.storage_backend == "local":
+        media_dir = Path(settings.local_media_dir)
+        media_dir.mkdir(parents=True, exist_ok=True)
+        app.mount("/media", StaticFiles(directory=media_dir), name="media")
 
     @app.get("/api/health", tags=["health"])
     def health() -> dict[str, str]:
