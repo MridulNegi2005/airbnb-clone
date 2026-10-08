@@ -20,16 +20,24 @@ def render_item(type_: str, obj: Any, _context: AutogenContext) -> str | bool:
 
 def run_migrations() -> None:
     with engine.connect() as connection:
+        # SQLite changes a table by copying it and dropping the old one. With foreign keys
+        # enforced, that drop fails as soon as other rows point at the table, so enforcement
+        # is paused (it can only change outside a transaction) and checked once at the end.
+        raw = connection.connection.driver_connection
+        raw.execute("PRAGMA foreign_keys = OFF")
         context.configure(
             connection=connection,
             target_metadata=Base.metadata,
-            # SQLite cannot ALTER most constraints in place; batch mode rebuilds the table.
             render_as_batch=True,
             compare_type=True,
             render_item=render_item,
         )
         with context.begin_transaction():
             context.run_migrations()
+            broken = connection.exec_driver_sql("PRAGMA foreign_key_check").fetchall()
+            if broken:
+                raise RuntimeError(f"Migration left broken foreign keys: {broken[:5]}")
+        raw.execute("PRAGMA foreign_keys = ON")
 
 
 run_migrations()

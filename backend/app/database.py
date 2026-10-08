@@ -3,21 +3,18 @@ from datetime import UTC, datetime
 from enum import StrEnum
 from typing import Any
 
-from sqlalchemy import DateTime, Enum, MetaData, create_engine, event, func
+from sqlalchemy import Connection, DateTime, Engine, Enum, MetaData, create_engine, event, func
 from sqlalchemy.engine import Dialect
 from sqlalchemy.orm import DeclarativeBase, Mapped, Session, mapped_column, sessionmaker
 from sqlalchemy.types import TypeDecorator
 
 from app.config import get_settings
 
-engine = create_engine(
-    get_settings().database_url,
-    connect_args={"check_same_thread": False},
-)
 
-
-@event.listens_for(engine, "connect")
 def _configure_sqlite(dbapi_connection: Any, _connection_record: Any) -> None:
+    # Python's sqlite3 only starts transactions before INSERT/UPDATE/DELETE, so schema changes
+    # would commit one by one. Turn that off and let SQLAlchemy emit BEGIN itself (below).
+    dbapi_connection.isolation_level = None
     for pragma in (
         "foreign_keys = ON",
         "journal_mode = WAL",
@@ -26,6 +23,20 @@ def _configure_sqlite(dbapi_connection: Any, _connection_record: Any) -> None:
     ):
         dbapi_connection.execute(f"PRAGMA {pragma}")
 
+
+def _begin(connection: Connection) -> None:
+    connection.exec_driver_sql("BEGIN")
+
+
+def make_engine(url: str) -> Engine:
+    """SQLite engine where every transaction, including a migration, is atomic."""
+    new_engine = create_engine(url, connect_args={"check_same_thread": False})
+    event.listen(new_engine, "connect", _configure_sqlite)
+    event.listen(new_engine, "begin", _begin)
+    return new_engine
+
+
+engine = make_engine(get_settings().database_url)
 
 SessionLocal = sessionmaker(bind=engine, expire_on_commit=False)
 
