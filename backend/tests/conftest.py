@@ -17,6 +17,7 @@ from app import security
 from app.database import Base, SessionLocal, engine
 from app.main import app
 from app.models import Amenity, Booking, Category, Listing
+from app.rate_limit import auth_limiter
 
 Headers = dict[str, str]
 
@@ -24,6 +25,7 @@ Headers = dict[str, str]
 @pytest.fixture(autouse=True)
 def fresh_db(monkeypatch: pytest.MonkeyPatch) -> None:
     monkeypatch.setattr(security, "_PBKDF2_ITERATIONS", 1_000)
+    auth_limiter.reset()
     Base.metadata.drop_all(engine)
     Base.metadata.create_all(engine)
 

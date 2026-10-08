@@ -59,3 +59,17 @@ def test_me_requires_valid_token(client: TestClient, guest: Headers) -> None:
     bad = {"Authorization": "Bearer not-a-real-token"}
     assert client.get("/api/auth/me", headers=bad).status_code == 401
     assert client.get("/api/auth/me", headers=guest).status_code == 200
+
+
+def test_login_with_unknown_email_is_rejected(client: TestClient) -> None:
+    response = client.post(
+        "/api/auth/login", json={"email": "nobody@example.com", "password": "password123"}
+    )
+    assert response.status_code == 401
+
+
+def test_auth_endpoints_are_rate_limited(client: TestClient) -> None:
+    attempt = {"email": "ana@example.com", "password": "wrong-password"}
+    statuses = [client.post("/api/auth/login", json=attempt).status_code for _ in range(21)]
+    assert statuses[:20] == [401] * 20
+    assert statuses[20] == 429

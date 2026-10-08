@@ -2,6 +2,7 @@ import hashlib
 import hmac
 import secrets
 from datetime import UTC, datetime, timedelta
+from functools import cache
 
 import jwt
 
@@ -25,6 +26,11 @@ def verify_password(password: str, stored_hash: str) -> bool:
     _, iterations, salt, digest = stored_hash.split("$")
     candidate = _derive(password, bytes.fromhex(salt), int(iterations))
     return hmac.compare_digest(candidate, digest)
+
+
+@cache
+def dummy_password_hash() -> str:
+    return hash_password(secrets.token_urlsafe(16))
 
 
 def create_access_token(user_id: int) -> str:
