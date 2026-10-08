@@ -22,7 +22,7 @@ from app.schemas.booking import ListingReviewOut
 from app.schemas.common import Page, PageParams
 from app.schemas.listing import HostListing, ListingCard, ListingFilters, ListingWrite
 from app.schemas.review import RatingSummary, ReviewPage
-from app.services.availability import overlaps
+from app.services.availability import unavailable_listing_ids
 from app.services.media import ensure_usable_images
 
 _RELATION_FIELDS = {"image_urls", "amenity_ids", "category_ids"}
@@ -72,8 +72,11 @@ def _filter_conditions(filters: ListingFilters) -> list[ColumnElement[bool]]:
         conditions.append(Listing.approx_latitude.between(bounds.south, bounds.north))
         conditions.append(Listing.approx_longitude.between(bounds.west, bounds.east))
     if filters.check_in and filters.check_out:
-        booked = select(Booking.listing_id).where(overlaps(filters.check_in, filters.check_out))
-        conditions.append(Listing.id.not_in(booked))
+        nights = (filters.check_out - filters.check_in).days
+        unavailable = unavailable_listing_ids(filters.check_in, filters.check_out)
+        conditions.append(Listing.id.not_in(unavailable))
+        conditions.append(Listing.min_nights <= nights)
+        conditions.append(Listing.max_nights >= nights)
     if filters.guests:
         conditions.append(Listing.max_guests >= filters.guests)
     if filters.min_price is not None:

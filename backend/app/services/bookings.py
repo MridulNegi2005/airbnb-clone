@@ -12,11 +12,14 @@ from app.schemas.booking import BookingCreate, GuestReviewCreate, ListingReviewC
 from app.schemas.listing import PriceQuote, StayParams
 from app.services.availability import is_available, lock_listing_calendar
 
+WEEKLY_STAY_NIGHTS = 7
+
 
 @dataclass(frozen=True)
 class Price:
     nights: int
     nightly_rate: int
+    discount: int
     cleaning_fee: int
     service_fee: int
 
@@ -26,13 +29,19 @@ class Price:
 
     @property
     def total(self) -> int:
-        return self.subtotal + self.cleaning_fee + self.service_fee
+        return self.subtotal - self.discount + self.cleaning_fee + self.service_fee
 
 
 def price_stay(listing: Listing, nights: int) -> Price:
     subtotal = listing.price_per_night * nights
-    service_fee = round((subtotal + listing.cleaning_fee) * get_settings().service_fee_rate)
-    return Price(nights, listing.price_per_night, listing.cleaning_fee, service_fee)
+    discount = (
+        round(subtotal * listing.weekly_discount_percent / 100)
+        if nights >= WEEKLY_STAY_NIGHTS
+        else 0
+    )
+    service_base = subtotal - discount + listing.cleaning_fee
+    service_fee = round(service_base * get_settings().service_fee_rate)
+    return Price(nights, listing.price_per_night, discount, listing.cleaning_fee, service_fee)
 
 
 def validate_stay(listing: Listing, stay: StayParams) -> None:
@@ -45,6 +54,16 @@ def validate_stay(listing: Listing, stay: StayParams) -> None:
             status.HTTP_422_UNPROCESSABLE_CONTENT,
             detail=f"This place allows a maximum of {listing.max_guests} guests",
         )
+    if stay.nights < listing.min_nights:
+        raise HTTPException(
+            status.HTTP_422_UNPROCESSABLE_CONTENT,
+            detail=f"This place has a minimum stay of {listing.min_nights} nights",
+        )
+    if stay.nights > listing.max_nights:
+        raise HTTPException(
+            status.HTTP_422_UNPROCESSABLE_CONTENT,
+            detail=f"This place has a maximum stay of {listing.max_nights} nights",
+        )
 
 
 def quote_stay(db: Session, listing: Listing, stay: StayParams) -> PriceQuote:
@@ -54,6 +73,7 @@ def quote_stay(db: Session, listing: Listing, stay: StayParams) -> PriceQuote:
         nights=price.nights,
         nightly_rate=price.nightly_rate,
         subtotal=price.subtotal,
+        discount=price.discount,
         cleaning_fee=price.cleaning_fee,
         service_fee=price.service_fee,
         total=price.total,
@@ -92,6 +112,7 @@ def create_booking(db: Session, guest: User, payload: BookingCreate) -> Booking:
         check_out=payload.check_out,
         guests=payload.guests,
         nightly_rate=price.nightly_rate,
+        discount=price.discount,
         cleaning_fee=price.cleaning_fee,
         service_fee=price.service_fee,
         total=price.total,

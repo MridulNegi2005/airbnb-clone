@@ -52,6 +52,9 @@ class HostListing(ListingCard):
 class ListingDetail(ListingCard):
     description: str
     cleaning_fee: int
+    weekly_discount_percent: int
+    min_nights: int
+    max_nights: int
     max_guests: int
     bedrooms: int
     beds: int
@@ -80,9 +83,18 @@ class ListingWrite(BaseModel):
     bedrooms: int = Field(ge=0, le=50)
     beds: int = Field(ge=1, le=50)
     bathrooms: float = Field(ge=0, le=50, multiple_of=0.5)
+    min_nights: int = Field(default=1, ge=1, le=MAX_NIGHTS)
+    max_nights: int = Field(default=MAX_NIGHTS, ge=1, le=MAX_NIGHTS)
+    weekly_discount_percent: int = Field(default=0, ge=0, le=90)
     image_urls: list[HttpUrl] = Field(min_length=1, max_length=20)
     amenity_ids: list[Id] = Field(default_factory=list, max_length=100)
     category_ids: list[Id] = Field(default_factory=list, max_length=20)
+
+    @model_validator(mode="after")
+    def check_stay_limits(self) -> Self:
+        if self.min_nights > self.max_nights:
+            raise ValueError("min_nights cannot be greater than max_nights")
+        return self
 
 
 class HostListingDetail(ORMModel):
@@ -106,6 +118,9 @@ class HostListingDetail(ORMModel):
     bedrooms: int
     beds: int
     bathrooms: float
+    min_nights: int
+    max_nights: int
+    weekly_discount_percent: int
     image_urls: list[str]
     amenity_ids: list[int]
     category_ids: list[int]
@@ -193,7 +208,25 @@ class PriceQuote(BaseModel):
     nights: int
     nightly_rate: int
     subtotal: int
+    discount: int
     cleaning_fee: int
     service_fee: int
     total: int
     available: bool
+
+
+class BlockedPeriodCreate(BaseModel):
+    start_date: date
+    end_date: date
+
+    @model_validator(mode="after")
+    def check_dates(self) -> Self:
+        if not 1 <= (self.end_date - self.start_date).days <= MAX_NIGHTS:
+            raise ValueError(f"A blocked period must be between 1 and {MAX_NIGHTS} nights")
+        return self
+
+
+class BlockedPeriodOut(ORMModel):
+    id: int
+    start_date: date
+    end_date: date

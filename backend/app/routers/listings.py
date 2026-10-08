@@ -17,7 +17,7 @@ from app.schemas.listing import (
     StayParams,
 )
 from app.schemas.review import ReviewPage
-from app.services.availability import booked_ranges
+from app.services.availability import unavailable_ranges
 from app.services.bookings import quote_stay
 from app.services.listings import (
     apply_listing_write,
@@ -46,8 +46,8 @@ def read_listing(listing_id: PathId, db: DbSession) -> Listing:
 @router.get("/{listing_id}/booked-dates", response_model=list[BookedRange])
 def read_booked_dates(listing_id: PathId, db: DbSession) -> list[BookedRange]:
     get_listing(db, listing_id)
-    ranges = booked_ranges(db, listing_id, from_date=date.today())
-    return [BookedRange.model_validate(booking) for booking in ranges]
+    ranges = unavailable_ranges(db, listing_id, from_date=date.today())
+    return [BookedRange(check_in=start, check_out=end) for start, end in ranges]
 
 
 @router.get("/{listing_id}/quote", response_model=PriceQuote)

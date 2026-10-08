@@ -13,6 +13,7 @@ from sqlalchemy import (
     Text,
     func,
     select,
+    text,
 )
 from sqlalchemy.ext.hybrid import hybrid_property
 from sqlalchemy.orm import Mapped, column_property, mapped_column, relationship
@@ -105,6 +106,11 @@ class Listing(TimestampMixin, Base):
         CheckConstraint("bedrooms >= 0 AND beds >= 1 AND bathrooms >= 0", name="rooms_valid"),
         CheckConstraint("latitude BETWEEN -90 AND 90", name="latitude_range"),
         CheckConstraint("longitude BETWEEN -180 AND 180", name="longitude_range"),
+        CheckConstraint(
+            "min_nights BETWEEN 1 AND 365 AND max_nights BETWEEN min_nights AND 365",
+            name="nights_range",
+        ),
+        CheckConstraint("weekly_discount_percent BETWEEN 0 AND 90", name="weekly_discount_range"),
         # Search only ever looks at active listings, so index just those rows.
         Index(
             "ix_listings_active_location",
@@ -133,6 +139,9 @@ class Listing(TimestampMixin, Base):
     bedrooms: Mapped[int]
     beds: Mapped[int]
     bathrooms: Mapped[float]
+    min_nights: Mapped[int] = mapped_column(default=1, server_default=text("1"))
+    max_nights: Mapped[int] = mapped_column(default=365, server_default=text("365"))
+    weekly_discount_percent: Mapped[int] = mapped_column(default=0, server_default=text("0"))
     archived_at: Mapped[datetime | None]
 
     rating: Mapped[float | None] = column_property(

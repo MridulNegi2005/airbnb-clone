@@ -41,6 +41,7 @@ class BookingOut(ORMModel):
     guests: int
     nightly_rate: int
     subtotal: int
+    discount: int
     cleaning_fee: int
     service_fee: int
     total: int

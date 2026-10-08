@@ -2,7 +2,7 @@ from datetime import date, datetime
 from enum import StrEnum
 from typing import TYPE_CHECKING
 
-from sqlalchemy import CheckConstraint, ForeignKey, Index
+from sqlalchemy import CheckConstraint, ForeignKey, Index, text
 from sqlalchemy.orm import Mapped, mapped_column, relationship
 
 from app.database import Base, TimestampMixin, str_enum
@@ -24,7 +24,8 @@ class Booking(TimestampMixin, Base):
         CheckConstraint("check_out > check_in", name="dates_order"),
         CheckConstraint("guests BETWEEN 1 AND 16", name="guests_range"),
         CheckConstraint(
-            "nightly_rate > 0 AND cleaning_fee >= 0 AND service_fee >= 0 AND total > 0",
+            "nightly_rate > 0 AND discount >= 0 AND cleaning_fee >= 0 AND service_fee >= 0 "
+            "AND total > 0",
             name="amounts_valid",
         ),
         CheckConstraint(
@@ -41,6 +42,7 @@ class Booking(TimestampMixin, Base):
     check_out: Mapped[date]
     guests: Mapped[int]
     nightly_rate: Mapped[int]
+    discount: Mapped[int] = mapped_column(default=0, server_default=text("0"))
     cleaning_fee: Mapped[int]
     service_fee: Mapped[int]
     total: Mapped[int]

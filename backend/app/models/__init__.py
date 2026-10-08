@@ -1,4 +1,5 @@
 from app.models.booking import Booking, BookingStatus
+from app.models.calendar import BlockedPeriod
 from app.models.listing import (
     APPROX_OFFSET_DEGREES,
     Amenity,
@@ -18,6 +19,7 @@ __all__ = [
     "APPROX_OFFSET_DEGREES",
     "LISTING_RATING_FIELDS",
     "Amenity",
+    "BlockedPeriod",
     "Booking",
     "BookingStatus",
     "Category",
