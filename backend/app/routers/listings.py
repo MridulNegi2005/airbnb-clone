@@ -1,10 +1,11 @@
 from datetime import date
 from typing import Annotated
 
-from fastapi import APIRouter, HTTPException, Query, status
+from fastapi import APIRouter, Depends, Query, status
 
 from app.deps import CurrentUser, DbSession, PathId
 from app.models import Listing
+from app.rate_limit import limit_by_user
 from app.schemas.common import Page, PageParams
 from app.schemas.listing import (
     BookedRange,
@@ -17,9 +18,10 @@ from app.schemas.listing import (
 )
 from app.schemas.review import ReviewPage
 from app.services.availability import booked_ranges
-from app.services.bookings import has_upcoming_bookings, quote_stay
+from app.services.bookings import quote_stay
 from app.services.listings import (
     apply_listing_write,
+    archive_listing,
     get_listing,
     get_owned_listing,
     list_reviews,
@@ -27,6 +29,8 @@ from app.services.listings import (
 )
 
 router = APIRouter(prefix="/listings", tags=["listings"])
+
+limit_listing_writes = Depends(limit_by_user(limit=30, window_seconds=3600))
 
 
 @router.get("", response_model=Page[ListingCard])
@@ -60,32 +64,34 @@ def read_reviews(
     return list_reviews(db, listing_id, params)
 
 
-@router.post("", response_model=ListingDetail, status_code=status.HTTP_201_CREATED)
+@router.post(
+    "",
+    response_model=ListingDetail,
+    status_code=status.HTTP_201_CREATED,
+    dependencies=[limit_listing_writes],
+)
 def create_listing(payload: ListingWrite, user: CurrentUser, db: DbSession) -> Listing:
     listing = Listing(host_id=user.id)
-    apply_listing_write(db, listing, payload)
+    apply_listing_write(db, listing, user, payload)
     db.add(listing)
     db.commit()
     return get_listing(db, listing.id)
 
 
-@router.put("/{listing_id}", response_model=ListingDetail)
+@router.put("/{listing_id}", response_model=ListingDetail, dependencies=[limit_listing_writes])
 def update_listing(
     listing_id: PathId, payload: ListingWrite, user: CurrentUser, db: DbSession
 ) -> Listing:
     listing = get_owned_listing(db, listing_id, user)
-    apply_listing_write(db, listing, payload)
+    apply_listing_write(db, listing, user, payload)
     db.commit()
     return listing
 
 
-@router.delete("/{listing_id}", status_code=status.HTTP_204_NO_CONTENT)
+@router.delete(
+    "/{listing_id}",
+    status_code=status.HTTP_204_NO_CONTENT,
+    dependencies=[limit_listing_writes],
+)
 def delete_listing(listing_id: PathId, user: CurrentUser, db: DbSession) -> None:
-    listing = get_owned_listing(db, listing_id, user)
-    if has_upcoming_bookings(db, listing_id):
-        raise HTTPException(
-            status.HTTP_409_CONFLICT,
-            detail="This listing has upcoming reservations and cannot be deleted",
-        )
-    db.delete(listing)
-    db.commit()
+    archive_listing(db, get_owned_listing(db, listing_id, user))
