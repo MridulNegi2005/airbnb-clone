@@ -89,13 +89,14 @@ function ListingCard({ listing, onDelete }: { listing: HostListing; onDelete: (l
         <button className={styles.menuTrigger} type="button" ref={trigger} aria-label={`Actions for ${listing.title}`} aria-expanded={open} aria-haspopup="menu" onClick={() => setOpen(value => !value)}><MoreHorizontal size={20} /></button>
         {open && <div className={styles.menu} role="menu">
           <Link role="menuitem" href={`/hosting/listings/${listing.id}/edit`} onClick={() => setOpen(false)}>Edit</Link>
+          <Link role="menuitem" href={`/hosting/listings/${listing.id}/calendar`} onClick={() => setOpen(false)}>Calendar</Link>
           <Link role="menuitem" href={`/rooms/${listing.id}`} onClick={() => setOpen(false)}>View listing</Link>
           <button role="menuitem" type="button" className={styles.deleteAction} onClick={() => { setOpen(false); trigger.current?.focus(); onDelete(listing); }}>Remove listing</button>
         </div>}
       </div>
     </div>
     <Link href={`/hosting/listings/${listing.id}/edit`} className={styles.listingCopy}><h3>{listing.title}</h3><p>{listing.neighbourhood}, {listing.city}</p><p className={styles.price}><strong>{formatPrice(listing.price_per_night)}</strong> night</p></Link>
-    <p className={styles.reservationCount}>{plural(listing.upcoming_booking_count, "upcoming reservation")}</p>
+    <p className={styles.reservationCount}>{plural(listing.upcoming_booking_count, "upcoming reservation")}</p><Link className={styles.calendarLink} href={`/hosting/listings/${listing.id}/calendar`}>Manage calendar</Link>
   </article>;
 }
 

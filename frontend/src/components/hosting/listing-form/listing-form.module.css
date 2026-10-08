@@ -30,3 +30,5 @@
   .body,.introBody,.photoMenu,.spinner{animation:none}
   .progress span,.photo,.tile,.roomRow,.chips button,.pill,.sidebar nav button,.tabs button,.footerActions button,.dragHandle,.photoMenuButton,.dangerButton{transition:none!important}
 }
+
+.priceSettings{margin-top:32px;border-top:1px solid var(--divider);padding-top:24px}.priceSettings h2{font-size:22px;margin:0 0 8px}.priceSettings .stepperRow{font-size:16px;gap:16px}.priceSettings .stepperRow strong{font-weight:500}.priceSettings .stepperRow p{color:var(--text-secondary);font-size:14px;margin:4px 0 0}.percentStepper{display:flex;align-items:center;gap:8px}.percentStepper>span{font-size:14px}

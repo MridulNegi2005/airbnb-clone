@@ -64,6 +64,9 @@ export const saveWishlist = (id: number, listingId: number) => request<void>(`/w
 export const removeWishlist = (id: number, listingId: number) => request<void>(`/wishlists/${id}/listings/${listingId}`, { method: "DELETE", auth: true });
 export const getHostListings = (signal?: AbortSignal) => request<Api.HostListing[]>("/host/listings", { auth: true, signal });
 export const getHostListing = (id: number, signal?: AbortSignal) => request<Api.HostListingDetail>(`/host/listings/${id}`, { auth: true, signal });
+export const getBlockedDates = (id: number, signal?: AbortSignal) => request<Api.BlockedPeriod[]>(`/host/listings/${id}/blocked-dates`, { auth: true, signal });
+export const blockDates = (id: number, body: { start_date: string; end_date: string }) => request<Api.BlockedPeriod>(`/host/listings/${id}/blocked-dates`, { method: "POST", body, auth: true });
+export const unblockDates = (id: number, periodId: number) => request<void>(`/host/listings/${id}/blocked-dates/${periodId}`, { method: "DELETE", auth: true });
 export const getHostBookings = (listingId?: number, signal?: AbortSignal) => request<Api.HostBooking[]>(`/host/bookings${queryString({ listing_id: listingId })}`, { auth: true, signal });
 export const createListing = (body: Api.ListingInput) => request<Api.ListingDetail>("/listings", { method: "POST", body, auth: true });
 export const updateListing = (id: number, body: Api.ListingInput) => request<Api.ListingDetail>(`/listings/${id}`, { method: "PUT", body, auth: true });
@@ -88,6 +91,7 @@ export const queryKeys = {
   listings: (params: Api.ListingQuery = {}) => ["listings", params] as const,
   listing: (id: number) => ["listing", id] as const,
   hostListing: (id: number) => ["host-listing", id] as const,
+  blockedDates: (id: number) => ["blocked-dates", id] as const,
   availability: (id: number) => ["availability", id] as const,
   bookedDates: (id: number) => ["availability", id] as const,
   quote: (id: number, params: Api.StayParams) => ["quote", id, params] as const,

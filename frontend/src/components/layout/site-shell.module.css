@@ -4,6 +4,7 @@
 .detailHeader :global(.brand-logo){min-width:0;font-size:24px;font-weight:700;gap:3px;letter-spacing:-1px}
 .detailHeader :global(.header-actions){gap:12px}
 .detailHeader :global(.user-menu-button){width:40px;height:40px;justify-content:center;padding:0;border:0;background:var(--surface)}
+.wishlistDetailHeader :global(.header-main){padding-inline:24px}
 @media(max-width:743px){.detailHeader :global(.header-main){height:72px;padding-inline:24px}.detailHeader :global(.compact-search){position:static;transform:none;width:auto}.detailHeader :global(.brand-logo){display:none}}
 .homeHeader :global(.header-main){height:96px;padding-inline:48px;max-width:none;position:relative}
 .homeHeader :global(.brand-logo){min-width:0;font-size:24px;font-weight:700;gap:3px;letter-spacing:-1px}

@@ -1,0 +1,8 @@
+.container{height:100%;min-height:420px;overflow:hidden;border-radius:24px;background:var(--surface)}
+.loading{display:grid;place-content:center;height:100%;min-height:420px;color:var(--text-secondary)}
+.marker{display:flex;flex-direction:column;align-items:center;gap:3px;background:transparent;border:0;color:#222;font-size:12px;font-weight:500;text-shadow:0 1px 3px #fff;cursor:pointer;transition:transform 160ms ease}
+.marker:hover,.selected{transform:scale(1.1)}
+.photo{display:block;position:relative;width:32px;height:32px;border:2px solid #fff;border-radius:7px;overflow:hidden;box-shadow:0 2px 6px rgb(0 0 0/.2);background:#fff}
+.photo img{object-fit:cover}.initial{display:grid;place-content:center;height:100%;background:#222;color:#fff;text-shadow:none}
+.year{font-size:10px;font-weight:400}.selected .photo{border-color:#222}
+@media(prefers-reduced-motion:reduce){.marker{transition:none}}

@@ -18,3 +18,5 @@
   .photo:hover img { transform:none; }
   .tabs button,.menuTrigger,.dashboard :global(.outline-button),.confirmActions button { transition:none; }
 }
+
+.calendarLink{display:inline-block;font-size:14px;font-weight:600;text-decoration:underline;margin-top:12px;text-underline-offset:3px}
