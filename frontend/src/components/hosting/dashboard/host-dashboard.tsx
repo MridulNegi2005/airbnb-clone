@@ -63,17 +63,19 @@ function ListingCard({ listing, onDelete }: { listing: HostListing; onDelete: (l
   const menu = useRef<HTMLDivElement>(null), trigger = useRef<HTMLButtonElement>(null);
   useEffect(() => {
     if (!open) return;
-    const frame = requestAnimationFrame(() => menu.current?.querySelector<HTMLElement>('[role="menuitem"]')?.focus());
+    const frame = requestAnimationFrame(() => menu.current?.querySelector<HTMLElement>('[role="menuitem"]')?.focus({preventScroll:true}));
     function pointer(event: PointerEvent) {
       if (event.target instanceof Node && !menu.current?.contains(event.target)) setOpen(false);
     }
     function keyboard(event: KeyboardEvent) {
-      if (event.key === "Escape") { event.preventDefault(); setOpen(false); trigger.current?.focus(); }
-      if (event.key === "ArrowDown" || event.key === "ArrowUp") {
+      if (event.key === "Escape") { event.preventDefault(); setOpen(false); trigger.current?.focus({preventScroll:true}); }
+      if (event.key === "Tab") { setOpen(false); return; }
+      if (["ArrowDown","ArrowUp","Home","End"].includes(event.key)) {
         const items = Array.from(menu.current?.querySelectorAll<HTMLElement>('[role="menuitem"]') ?? []);
         const current = items.indexOf(document.activeElement as HTMLElement);
         event.preventDefault();
-        items[(current + (event.key === "ArrowDown" ? 1 : -1) + items.length) % items.length]?.focus();
+        const next=event.key==="Home"?0:event.key==="End"?items.length-1:(current+(event.key==="ArrowDown"?1:-1)+items.length)%items.length;
+        items[next]?.focus({preventScroll:true});
       }
     }
     document.addEventListener("pointerdown", pointer); document.addEventListener("keydown", keyboard);
@@ -91,7 +93,7 @@ function ListingCard({ listing, onDelete }: { listing: HostListing; onDelete: (l
           <Link role="menuitem" href={`/hosting/listings/${listing.id}/edit`} onClick={() => setOpen(false)}>Edit</Link>
           <Link role="menuitem" href={`/hosting/listings/${listing.id}/calendar`} onClick={() => setOpen(false)}>Calendar</Link>
           <Link role="menuitem" href={`/rooms/${listing.id}`} onClick={() => setOpen(false)}>View listing</Link>
-          <button role="menuitem" type="button" className={styles.deleteAction} onClick={() => { setOpen(false); trigger.current?.focus(); onDelete(listing); }}>Remove listing</button>
+          <button role="menuitem" type="button" className={styles.deleteAction} onClick={() => { setOpen(false); trigger.current?.focus({preventScroll:true}); onDelete(listing); }}>Remove listing</button>
         </div>}
       </div>
     </div>

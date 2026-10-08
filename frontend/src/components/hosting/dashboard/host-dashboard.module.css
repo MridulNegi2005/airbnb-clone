@@ -20,3 +20,5 @@
 }
 
 .calendarLink{display:inline-block;font-size:14px;font-weight:600;text-decoration:underline;margin-top:12px;text-underline-offset:3px}
+
+@media(prefers-reduced-motion:no-preference){.tabs button:active:not(:disabled),.menuTrigger:active,.dashboard :global(.outline-button):active,.confirmActions button:active:not(:disabled){transform:none;scale:.98}}

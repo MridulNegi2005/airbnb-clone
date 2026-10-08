@@ -37,7 +37,7 @@ export function readDraft(key: string): FormState | null {
   try { const raw: unknown = JSON.parse(sessionStorage.getItem(key) ?? 'null'); if (!raw || typeof raw !== 'object' || !('draft' in raw) || !('step' in raw) || typeof raw.step !== 'number' || !Number.isInteger(raw.step) || raw.step < 0 || raw.step > 10 || !raw.draft || typeof raw.draft !== 'object') return null;
     const saved = { min_nights: 1, max_nights: 365, weekly_discount_percent: 0, ...raw.draft } as Record<string, unknown>;
     if (!Object.entries(emptyDraft).every(([field, value]) => field === 'google_place_id' ? saved[field] === null || typeof saved[field] === 'string' : Array.isArray(value) ? Array.isArray(saved[field]) && (saved[field] as unknown[]).every(item => typeof item === (field === 'image_urls' ? 'string' : 'number')) : typeof saved[field] === typeof value)) return null;
-    if (raw.step === 0 && JSON.stringify(saved) === JSON.stringify(emptyDraft)) return null;
+    if (raw.step === 0 && Object.entries(emptyDraft).every(([field,value]) => Array.isArray(value) ? JSON.stringify(saved[field]) === JSON.stringify(value) : saved[field] === value)) return null;
     return { step: raw.step, draft: saved as Draft };
   } catch { return null; }
 }
