@@ -1,0 +1,8 @@
+"use client";
+import { formatPrice } from "@/lib/format";
+import styles from "./search.module.css";
+export function PriceRange({ minimum, maximum, onChange }: { minimum: number; maximum: number; onChange: (min: number, max: number) => void }) {
+  function clamp() { onChange(Math.max(0, Math.min(minimum, maximum, 50000)), Math.min(50000, Math.max(minimum, maximum, 0))); }
+  return <><div className={styles.slider}><div className={styles.sliderTrack} /><div className={styles.sliderSelected} style={{ left: `${minimum / 500}%`, right: `${(50000 - maximum) / 500}%` }} /><input aria-label="Minimum nightly price" type="range" min={0} max={50000} step={100} value={minimum} onChange={(event) => onChange(Math.min(Number(event.target.value), maximum), maximum)} /><input aria-label="Maximum nightly price" type="range" min={0} max={50000} step={100} value={maximum} onChange={(event) => onChange(minimum, Math.max(Number(event.target.value), minimum))} /></div><div className={styles.priceInputs}><label>Minimum<span className="flex items-center gap-1 text-base text-primary">₹<input type="number" min={0} max={50000} value={minimum} onBlur={clamp} onChange={(event) => onChange(Number(event.target.value), maximum)} /></span></label><label>Maximum{maximum >= 50000 && <span className="text-xs text-secondary">{formatPrice(50000)}+</span>}<span className="flex items-center gap-1 text-base text-primary">₹<input type="number" min={0} max={50000} value={maximum} onBlur={clamp} onChange={(event) => onChange(minimum, Number(event.target.value))} />{maximum >= 50000 && <span>+</span>}</span></label></div></>;
+}
+
