@@ -1,6 +1,6 @@
 from functools import lru_cache
 
-from pydantic import Field
+from pydantic import Field, field_validator
 from pydantic_settings import BaseSettings, SettingsConfigDict
 
 
@@ -15,6 +15,13 @@ class Settings(BaseSettings):
     max_upload_bytes: int = 5 * 1024 * 1024
     service_fee_rate: float = 0.14
     seed_user_password: str | None = None
+
+    @field_validator("secret_key")
+    @classmethod
+    def reject_placeholder(cls, value: str) -> str:
+        if value.startswith("replace-with"):
+            raise ValueError("Set SECRET_KEY to a random value, not the .env.example placeholder")
+        return value
 
 
 @lru_cache
