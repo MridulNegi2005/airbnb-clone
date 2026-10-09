@@ -89,6 +89,15 @@ async def cache_public_reads(request: Request, call_next: Next) -> Response:
     return response
 
 
+async def add_security_headers(request: Request, call_next: Next) -> Response:
+    response = await call_next(request)
+    response.headers.setdefault("Strict-Transport-Security", "max-age=31536000; includeSubDomains")
+    response.headers.setdefault("X-Content-Type-Options", "nosniff")
+    response.headers.setdefault("X-Frame-Options", "DENY")
+    response.headers.setdefault("Referrer-Policy", "strict-origin-when-cross-origin")
+    return response
+
+
 async def guard_uploads(request: Request, call_next: Next) -> Response:
     # Reject oversized uploads before the multipart parser spools the body to disk.
     path = _route_path(request)
@@ -127,6 +136,7 @@ def create_app() -> FastAPI:
         expose_headers=["Retry-After"],
     )
     app.middleware("http")(cache_public_reads)
+    app.middleware("http")(add_security_headers)
 
     for module in (
         auth,

@@ -16,3 +16,11 @@ def test_signed_in_and_private_reads_are_not_cached(client: TestClient, guest: H
     assert "cache-control" not in signed_in.headers
     me = client.get("/api/auth/me", headers=guest)
     assert "cache-control" not in me.headers
+
+
+def test_every_response_carries_security_headers(client: TestClient) -> None:
+    for path in ("/api/categories", "/api/auth/me", "/api/listings/999999"):
+        headers = client.get(path).headers
+        assert headers["x-content-type-options"] == "nosniff"
+        assert headers["x-frame-options"] == "DENY"
+        assert headers["strict-transport-security"].startswith("max-age=")
