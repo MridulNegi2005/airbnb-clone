@@ -32,7 +32,7 @@ export function SmartImage({ src, unoptimized, onError, priority, preload, loadi
   const imagePreload=Boolean(preload)&&!imageLoading&&!imagePriority;
   if(useDirectSource && typeof src==="string"){
     // eslint-disable-next-line @next/next/no-img-element -- V2 requires plain img for arbitrary HTTPS photo hosts.
-    return <img src={src} alt={props.alt} width={props.width} height={props.height} className={props.className} sizes={props.sizes} loading={imageLoading??(preload?"eager":"lazy")} fetchPriority={imagePriority} decoding={props.decoding??"async"} onLoad={props.onLoad} onError={onError} style={{...(props.fill?{position:"absolute",inset:0,width:"100%",height:"100%"} as const:{}),...props.style}}/>;
+    return <img src={src} alt={props.alt} width={props.width} height={props.height} className={props.className} sizes={props.sizes} loading={imageLoading??(preload?"eager":"lazy")} fetchPriority={imagePriority} decoding={props.decoding??"async"} referrerPolicy="no-referrer" onLoad={props.onLoad} onError={onError} style={{...(props.fill?{position:"absolute",inset:0,width:"100%",height:"100%"} as const:{}),...props.style}}/>;
   }
   const local=typeof src==="string" && src.startsWith("http://localhost:8000/");
   return <Image {...props} loader={props.loader??(unsplash?unsplashLoader:undefined)} alt={props.alt} src={src} loading={imageLoading} fetchPriority={imagePriority} preload={imagePreload} unoptimized={local||unoptimized} onError={event=>{
