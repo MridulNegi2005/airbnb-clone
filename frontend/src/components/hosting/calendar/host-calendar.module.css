@@ -11,3 +11,4 @@
 @media(max-width:359px){.price{font-size:9px}.mobileTiles>button,.mobileTiles>a{padding:16px}.mobileTiles strong{font-size:20px}.mobileTiles>a strong{font-size:26px}.bookingStrip{gap:3px;padding:8px 3px}.bookingStrip img,.bookingAvatar{width:24px;height:24px}}
 @media(prefers-reduced-motion:no-preference){.mobileSelection{animation:panelIn 180ms cubic-bezier(.2,.8,.2,1)}.mobileTiles>button,.mobileTiles>a,.selectionSummary>button{transition:background-color 140ms ease}.day{transition:background-color 140ms ease,color 140ms ease,border-color 140ms ease}}
 @media(prefers-reduced-motion:reduce){.mobileSelection{animation:none}.mobileTiles>button,.mobileTiles>a,.selectionSummary>button,.day{transition:none}}
+.confirmActions{display:flex;align-items:center;justify-content:space-between;gap:24px}

@@ -1,7 +1,7 @@
 import type { Metadata } from "next";
 import styles from "@/components/legal/legal-page.module.css";
 
-export const metadata: Metadata = { title: "Privacy Policy | Airbnb clone" };
+export const metadata: Metadata = { title: "Privacy Policy" };
 
 export default function PrivacyPage() {
   const contactEmail = process.env.NEXT_PUBLIC_CONTACT_EMAIL || "contact@mridulnegi.dev";

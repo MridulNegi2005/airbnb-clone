@@ -1,7 +1,7 @@
 import type { Metadata } from "next";
 import styles from "@/components/legal/legal-page.module.css";
 
-export const metadata: Metadata = { title: "Terms of Service | Airbnb clone" };
+export const metadata: Metadata = { title: "Terms of Service" };
 
 export default function TermsPage() {
   return <article className={styles.page}>
