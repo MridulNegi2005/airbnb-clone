@@ -11,6 +11,8 @@ import { GradientButton } from "@/components/ui/gradient-button";
 import { GoogleSignInButton } from "@/components/auth/google-signin-button";
 import { useApiCooldown } from "@/hooks/use-api-cooldown";
 
+const privateQueryRoots=new Set(["wishlists","saved-listings","bookings","host-listings","host-listing","host-bookings","blocked-dates","conversations","messages","unread-count"]);
+
 type AuthStatus = "loading"|"authenticated"|"anonymous";
 type AuthContextValue = {user:UserPrivate|null;status:AuthStatus;isHost:boolean;updateUser:(user:UserPrivate)=>void;openAuth:(onSuccess?:()=>void,onCancel?:()=>void,initialMode?:"login"|"register")=>void;logout:()=>void};
 const AuthContext=createContext<AuthContextValue|null>(null);
@@ -42,7 +44,7 @@ export function AuthProvider({children}: {children:ReactNode}) {
     const current=()=>active&&sessionVersion.current===version&&getToken()===initialToken;
     const stop=()=>{active=false;controller?.abort();if(timer!==undefined)window.clearTimeout(timer);if(notice!==undefined){toast.dismiss(notice);notice=undefined;}};
     stopRestore.current=stop;
-    const expired=()=>{sessionVersion.current++;stop();clearToken();setUser(null);setStatus("anonymous");client.removeQueries({predicate:q=>["wishlists","saved-listings","bookings","host-listings","host-listing","host-bookings","conversations","messages","unread-count"].includes(String(q.queryKey[0]))});openAuth();};
+    const expired=()=>{sessionVersion.current++;stop();clearToken();setUser(null);setStatus("anonymous");client.removeQueries({predicate:q=>privateQueryRoots.has(String(q.queryKey[0]))});openAuth();};
     async function restore(){
       if(!current()||inFlight||rateLimited||Date.now()<retryAt)return;
       if(!initialToken){setStatus("anonymous");return;}
@@ -75,7 +77,7 @@ export function AuthProvider({children}: {children:ReactNode}) {
     window.addEventListener("online",recover);window.addEventListener("focus",recover);
     return ()=>{stop();if(stopRestore.current===stop)stopRestore.current=undefined;window.removeEventListener("auth-expired",expired);window.removeEventListener("online",recover);window.removeEventListener("focus",recover);};
   },[client,openAuth]);
-  const logout=()=>{sessionVersion.current++;stopRestore.current?.();clearToken();setUser(null);setStatus("anonymous");client.removeQueries({predicate:q=>["wishlists","saved-listings","bookings","host-listings","host-listing","host-bookings","conversations","messages","unread-count"].includes(String(q.queryKey[0]))});toast("Logged out");};
+  const logout=()=>{sessionVersion.current++;stopRestore.current?.();clearToken();setUser(null);setStatus("anonymous");client.removeQueries({predicate:q=>privateQueryRoots.has(String(q.queryKey[0]))});toast("Logged out");};
   const close=useCallback(()=>{if(pending||authLock.current)return;setOpen(false);cancel.current?.();cancel.current=undefined;success.current=undefined;},[pending]);
   async function authenticate(result:import("@/types/api").AuthResponse) {
     sessionVersion.current++;stopRestore.current?.();
