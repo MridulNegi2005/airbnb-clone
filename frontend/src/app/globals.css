@@ -53,3 +53,4 @@
 .modal-panel:has([data-profile-identity]) .modal-header>.icon-button{left:auto;right:16px}@media(max-width:743px){.modal-panel:has([data-profile-languages]){max-height:83dvh}}
 @media(max-width:743px){.public-profile-shell .site-header,.public-profile-shell .site-footer,.public-profile-shell .mobile-tab-bar{display:none}}
 @media(max-width:743px){.modal-footer{padding-bottom:calc(16px + env(safe-area-inset-bottom))}}
+@media(max-width:743px){.mobile-tab-bar{transition:transform 200ms ease-out}.mobile-tab-bar[data-hidden=true]{transform:translateY(calc(100% + 1px));pointer-events:none}}

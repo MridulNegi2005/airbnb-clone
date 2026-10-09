@@ -92,8 +92,24 @@ function Footer(){
 }
 function MobileTabs(){
   const path=usePathname();const {user,openAuth}=useAuth();const unread=useUnreadCount();
+  const [hidden,setHidden]=useState(false);
+  useEffect(()=>{
+    let previous=window.scrollY,distance=0;
+    const reset=requestAnimationFrame(()=>setHidden(false));
+    const scroll=()=>{
+      const current=window.scrollY,delta=current-previous;previous=current;
+      if(window.innerWidth>=744||current<24){distance=0;setHidden(false);return;}
+      if(Math.sign(delta)!==Math.sign(distance))distance=0;
+      distance+=delta;
+      if(Math.abs(distance)<8)return;
+      setHidden(distance>0);distance=0;
+    };
+    window.addEventListener("scroll",scroll,{passive:true});
+    window.addEventListener("resize",scroll);
+    return()=>{cancelAnimationFrame(reset);window.removeEventListener("scroll",scroll);window.removeEventListener("resize",scroll);};
+  },[path]);
   const tabs=[{href:"/",label:"Explore",icon:Search},{href:"/wishlists",label:"Wishlists",icon:Heart},{href:path.startsWith("/hosting")?"/hosting":"/trips",label:path.startsWith("/hosting")?"Hosting":"Trips",icon:path.startsWith("/hosting")?House:Plane},{href:"/messages",label:"Inbox",icon:Mail}];
-  return <nav className="mobile-tab-bar" aria-label="Main navigation">{tabs.map(tab=><Link key={tab.href} href={tab.href} aria-current={tab.href==="/"?path==="/"?"page":undefined:path.startsWith(tab.href)?"page":undefined}><span className="tab-icon"><tab.icon size={24}/>{tab.href==="/messages"&&unread>0&&<span className="unread-badge">{unread}</span>}</span>{tab.label}</Link>)}{user?<Link href="/account" aria-current={path.startsWith("/account")?"page":undefined}><UserRound size={24}/>Profile</Link>:<button onClick={()=>openAuth()}><UserRound size={24}/>Log in</button>}</nav>;
+  return <nav className="mobile-tab-bar" data-hidden={hidden} aria-hidden={hidden} inert={hidden} aria-label="Main navigation">{tabs.map(tab=><Link key={tab.href} href={tab.href} aria-current={tab.href==="/"?path==="/"?"page":undefined:path.startsWith(tab.href)?"page":undefined}><span className="tab-icon"><tab.icon size={24}/>{tab.href==="/messages"&&unread>0&&<span className="unread-badge">{unread}</span>}</span>{tab.label}</Link>)}{user?<Link href="/account" aria-current={path.startsWith("/account")?"page":undefined}><UserRound size={24}/>Profile</Link>:<button onClick={()=>openAuth()}><UserRound size={24}/>Log in</button>}</nav>;
 }
 export function SiteShell({children}:{children:ReactNode}){
   const path=usePathname();
