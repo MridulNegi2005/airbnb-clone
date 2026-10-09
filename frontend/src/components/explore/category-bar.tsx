@@ -26,7 +26,7 @@ export function CategoryBar({onFilters}:{onFilters:()=>void}) {
   },[amenities.data]);
   function move(direction:number){const element=container.current;element?.scrollBy({left:direction*element.clientWidth*.8,behavior:window.matchMedia("(prefers-reduced-motion: reduce)").matches?"instant":"smooth"});}
   return <div className={styles.categoryWrap}><nav className={`${styles.categoryBar} ${styles.resultsFilters}`} aria-label="Filter stays">
-    <button className={styles.filters} onClick={onFilters}><SlidersHorizontal size={16}/><span>Filters</span>{count>0&&<span className={styles.filterBadge}>{count}</span>}</button>
+    <button className={styles.filters} onClick={onFilters} aria-label={count>0?`Filters, ${count} applied`:"Filters"}><SlidersHorizontal size={16}/><span>Filters</span>{count>0&&<span className={styles.filterBadge}>{count}</span>}</button>
     {overflow.left&&<button className={styles.arrow} aria-label="Previous filters" onClick={()=>move(-1)}><ChevronLeft size={16}/></button>}
     <div className={styles.categories} ref={container}>
       {amenities.isPending&&Array.from({length:6},(_,index)=><span key={index} className={`skeleton ${styles.filterSkeleton}`}/>)}
