@@ -14,8 +14,9 @@ export function CategoryBar({onFilters}:{onFilters:()=>void}) {
   const [overflow,setOverflow]=useState({left:false,right:false});
   const count=["min_price","max_price","place_type","bedrooms","beds","bathrooms","property_types","amenities","category"].filter(key=>params.has(key)).length;
   const saved=params.get("amenities")?.split(",").filter(Boolean)??[];
-  const names=["Free parking","Self check-in","Wifi","Air conditioning","TV","Kitchen","Pool"];
-  const ordered=(amenities.data??[]).filter(amenity=>names.some(name=>name.toLowerCase()===amenity.name.toLowerCase())).sort((a,b)=>names.findIndex(name=>name.toLowerCase()===a.name.toLowerCase())-names.findIndex(name=>name.toLowerCase()===b.name.toLowerCase()));
+  const names=["Washing machine","Wifi","Free parking","Kitchen","Air conditioning","Pool","Self check-in","TV"];
+  const label=(amenity:{name:string;icon:string})=>amenity.icon==="washer"?"Washing machine":amenity.icon==="parking"?"Free parking":amenity.name;
+  const ordered=(amenities.data??[]).filter(amenity=>names.some(name=>name.toLowerCase()===label(amenity).toLowerCase())).sort((a,b)=>names.findIndex(name=>name.toLowerCase()===label(a).toLowerCase())-names.findIndex(name=>name.toLowerCase()===label(b).toLowerCase()));
   const choices=ordered.length?ordered:(amenities.data??[]).slice(0,7);
   useEffect(()=>{
     const element=container.current;if(!element)return;
@@ -30,7 +31,7 @@ export function CategoryBar({onFilters}:{onFilters:()=>void}) {
     <div className={styles.categories} ref={container}>
       {amenities.isPending&&Array.from({length:6},(_,index)=><span key={index} className={`skeleton ${styles.filterSkeleton}`}/>)}
       {amenities.isError&&<p className={styles.categoryError}>Filters could not be loaded.<button onClick={()=>void amenities.refetch()}>Try again</button></p>}
-      {choices.map(amenity=>{const id=String(amenity.id),selected=saved.includes(id);return <button key={amenity.id} className={styles.quickFilter} aria-pressed={selected} onClick={()=>update({amenities:(selected?saved.filter(value=>value!==id):[...saved,id]).join(",")||undefined})}>{amenity.name}</button>;})}
+      {choices.map(amenity=>{const id=String(amenity.id),selected=saved.includes(id);return <button key={amenity.id} className={styles.quickFilter} aria-pressed={selected} onClick={()=>update({amenities:(selected?saved.filter(value=>value!==id):[...saved,id]).join(",")||undefined})}>{label(amenity)}</button>;})}
     </div>
     {overflow.right&&<button className={styles.arrow} aria-label="Next filters" onClick={()=>move(1)}><ChevronRight size={16}/></button>}
   </nav></div>;
