@@ -32,6 +32,7 @@ export function ListingDetailView({ listing, initialReviews }: { listing: Listin
   const availability = useAvailability(listing.id);
   const [reserving, setReserving] = useState(false);
   const [navigationStuck, setNavigationStuck] = useState(false);
+  const [activeSection, setActiveSection] = useState("photos");
   useEffect(() => {
     const photos = document.getElementById("photos");
     if (!photos) return;
@@ -41,8 +42,14 @@ export function ListingDetailView({ listing, initialReviews }: { listing: Listin
     });
     observer.observe(photos);
     const resize = () => setNavigationStuck(media.matches && photos.getBoundingClientRect().bottom <= 0);
+    const scroll = () => {
+      const sections = ["photos", "amenities", "reviews", "location"];
+      const current = sections.filter(id => (document.getElementById(id)?.getBoundingClientRect().top ?? Infinity) <= 96).at(-1);
+      setActiveSection(current ?? "photos");
+    };
+    window.addEventListener("scroll", scroll, { passive: true });
     media.addEventListener("change", resize);
-    return () => { observer.disconnect(); media.removeEventListener("change", resize); };
+    return () => { observer.disconnect(); media.removeEventListener("change", resize); window.removeEventListener("scroll", scroll); };
   }, [listing.id]);
   const checkIn = search.get("checkin") ?? "";
   const checkOut = search.get("checkout") ?? "";
@@ -98,7 +105,7 @@ export function ListingDetailView({ listing, initialReviews }: { listing: Listin
   const title = range?.from && range.to ? `${countNights(toDateString(range.from), toDateString(range.to))} nights in ${listing.city}` : range?.from ? "Select checkout date" : "Select check-in date";
   return <div className={styles.page}>
     <nav className={styles.sectionNavigation} data-detail-navigation={navigationStuck ? "stuck" : "idle"} aria-label="Listing sections" aria-hidden={!navigationStuck} inert={!navigationStuck}>
-      <div>{[{id:"photos",label:"Photos"},{id:"amenities",label:"Amenities"},{id:"reviews",label:"Reviews"},{id:"location",label:"Location"}].map(item => <button key={item.id} onClick={() => document.getElementById(item.id)?.scrollIntoView({ behavior: window.matchMedia("(prefers-reduced-motion: reduce)").matches ? "instant" : "smooth", block: "start" })}>{item.label}</button>)}</div>
+      <div>{[{id:"photos",label:"Photos"},{id:"amenities",label:"Amenities"},{id:"reviews",label:"Reviews"},{id:"location",label:"Location"}].map(item => <button key={item.id} aria-current={activeSection === item.id ? "location" : undefined} onClick={() => document.getElementById(item.id)?.scrollIntoView({ behavior: window.matchMedia("(prefers-reduced-motion: reduce)").matches ? "instant" : "smooth", block: "start" })}>{item.label}</button>)}</div>
     </nav>
     <div className={styles.titleRow}><h1>{listing.title}</h1><div><button onClick={() => void share()}><Share size={16} aria-hidden="true" />Share</button><button disabled={wishlist.isBlocked} onClick={() => wishlist.toggle(listing.id)} aria-pressed={wishlist.savedIds.has(listing.id)}><Heart size={16} fill={wishlist.savedIds.has(listing.id) ? "var(--brand)" : "none"} aria-hidden="true" />{wishlist.savedIds.has(listing.id) ? "Saved" : "Save"}</button></div></div>
     <PhotoGallery title={listing.title} images={listing.image_urls} saved={wishlist.savedIds.has(listing.id)} onShare={() => void share()} onSave={() => wishlist.toggle(listing.id)} saveDisabled={wishlist.isBlocked} />

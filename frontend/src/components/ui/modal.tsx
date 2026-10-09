@@ -7,16 +7,16 @@ const stack: symbol[] = [];
 const subscribe = () => () => {};
 let originalOverflow="";
 let originalPadding="";
-export function Modal({open,onClose,title,children,footer,width=568,presentation="default"}: {open:boolean;onClose:()=>void;title:string;children:ReactNode;footer?:ReactNode;width?:number;presentation?:"default"|"reviews"|"calendar"|"filters"|"checkout"|"profile"|"message-details"|"wishlist"}) {
+export function Modal({open,onClose,title,children,footer,width=568,presentation="default",exitDuration=200}: {open:boolean;onClose:()=>void;title:string;children:ReactNode;footer?:ReactNode;width?:number;exitDuration?:number;presentation?:"default"|"reviews"|"calendar"|"filters"|"checkout"|"profile"|"message-details"|"wishlist"}) {
   const mounted = useSyncExternalStore(subscribe,()=>true,()=>false);
   const [present,setPresent] = useState(open);
   if(open&&!present) setPresent(true);
   useEffect(()=>{
     if(open||!present) return;
-    const duration=window.matchMedia("(prefers-reduced-motion: reduce)").matches?0:200;
+    const duration=window.matchMedia("(prefers-reduced-motion: reduce)").matches?0:exitDuration;
     const timer=window.setTimeout(()=>setPresent(false),duration);
     return ()=>window.clearTimeout(timer);
-  },[open,present]);
+  },[open,present,exitDuration]);
   const panel = useRef<HTMLDivElement>(null);
   const closeHandler = useRef(onClose);
   const id = useId();
