@@ -36,16 +36,32 @@ function FitTrips({bookings,selectedId}:{bookings:Booking[];selectedId?:number|n
   const fitted=useRef("");
   const key=`${bookings.map(booking=>`${booking.id}:${booking.listing.latitude}:${booking.listing.longitude}`).join("|")}|${selectedId??"all"}`;
   useEffect(()=>{
-    if(!map||!bookings.length||fitted.current===key)return;
+    if(!map||!bookings.length)return;
     const selected=bookings.find(booking=>booking.id===selectedId);
     if(selected){
-      const center={lat:selected.listing.latitude,lng:selected.listing.longitude};
-      if(window.matchMedia("(prefers-reduced-motion: reduce)").matches)map.setCenter(center);
-      else map.panTo(center);
-      map.setZoom(15);
-      fitted.current=key;
-      return;
+      const position=()=>{
+        let center: google.maps.LatLng | google.maps.LatLngLiteral={lat:selected.listing.latitude,lng:selected.listing.longitude};
+        const projection=map.getProjection();
+        if(window.matchMedia("(max-width: 743px)").matches){
+          if(!projection)return;
+          const point=projection.fromLatLngToPoint(new google.maps.LatLng(center));
+          const height=map.getDiv().clientHeight;
+          const visibleHeight=Math.min(height,window.innerHeight*.36);
+          if(point)center=projection.fromPointToLatLng(new google.maps.Point(point.x,point.y+(height-visibleHeight)/2/2**15))??center;
+        }
+        if(window.matchMedia("(prefers-reduced-motion: reduce)").matches)map.moveCamera({center,zoom:15});
+        else {
+          map.setZoom(15);
+          map.panTo(center);
+        }
+        fitted.current=key;
+      };
+      const ready=map.getProjection()?undefined:google.maps.event.addListenerOnce(map,"projection_changed",position);
+      if(fitted.current!==key)position();
+      window.addEventListener("resize",position);
+      return()=>{ready?.remove();window.removeEventListener("resize",position);};
     }
+    if(fitted.current===key)return;
     const bounds=new google.maps.LatLngBounds();
     bookings.forEach(booking=>bounds.extend({lat:booking.listing.latitude,lng:booking.listing.longitude}));
     map.fitBounds(bounds,80);

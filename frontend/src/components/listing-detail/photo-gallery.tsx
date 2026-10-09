@@ -38,6 +38,13 @@ export function PhotoGallery({ images, title, saved, onSave, onShare, saveDisabl
     if (gap > 0) document.documentElement.style.paddingRight = `${parseFloat(getComputedStyle(document.documentElement).paddingRight) + gap}px`;
     document.documentElement.style.overflow = "hidden";
     const keydown = (event: KeyboardEvent) => {
+      if (panel.current?.inert) {
+        if (["Tab", "Escape", "ArrowRight", "ArrowLeft"].includes(event.key)) {
+          event.preventDefault();
+          event.stopPropagation();
+        }
+        return;
+      }
       if (document.activeElement && !panel.current?.contains(document.activeElement)) return;
       if (event.key === "Escape") {
         event.preventDefault();
@@ -105,7 +112,7 @@ export function PhotoGallery({ images, title, saved, onSave, onShare, saveDisabl
       {images.length > 1 && <><button className={styles.mobilePrevious} aria-label="Previous listing photo" disabled={slide === 0} onClick={() => moveSlide(-1)}><ChevronLeft size={18} /></button><button className={styles.mobileNext} aria-label="Next listing photo" disabled={slide === images.length - 1} onClick={() => moveSlide(1)}><ChevronRight size={18} /></button></>}
       {images.length > 0 && <button className={styles.photoCounter} onClick={() => openTour(slide)}>{slide + 1} / {images.length}</button>}
     </div>
-    {present && createPortal(<div className={`${styles.photoTour} ${lightbox !== null ? styles.lightbox : ""}`} data-state={tour ? "open" : "closing"} ref={panel} role="dialog" aria-modal="true" aria-label={lightbox !== null ? "Photo viewer" : "Photo tour"}>
+    {present && createPortal(<div className={`${styles.photoTour} ${lightbox !== null ? styles.lightbox : ""}`} data-state={tour ? "open" : "closing"} ref={panel} role="dialog" aria-modal={tour} aria-hidden={!tour} inert={!tour} aria-label={lightbox !== null ? "Photo viewer" : "Photo tour"}>
       <div className={styles.tourHeader}><button aria-label={lightbox !== null ? "Close photo viewer" : "Close photo tour"} onClick={() => lightbox !== null ? setLightbox(null) : setTour(false)}>{lightbox !== null ? <X size={20} /> : <ChevronLeft size={20} />}{lightbox !== null && <span>Close</span>}</button>{lightbox !== null ? <span aria-live="polite">{lightbox + 1} / {images.length}</span> : <span />}<div><button onClick={onShare}><Share size={16} />Share</button><button onClick={onSave} aria-pressed={saved} disabled={saveDisabled}><Heart size={16} fill={saved ? "var(--brand)" : "none"} />{saved ? "Saved" : "Save"}</button></div></div>
       {lightbox !== null && images[lightbox] ? <div className={styles.lightboxBody}><button aria-label="Previous photo" disabled={lightbox === 0} onClick={() => setLightbox(Math.max(0, lightbox - 1))}><ChevronLeft size={24} /></button><div className={styles.lightboxImage} key={lightbox}><Image src={images[lightbox]} alt={`Photo ${lightbox + 1} of ${title}`} fill sizes="90vw" /></div><button aria-label="Next photo" disabled={lightbox === images.length - 1} onClick={() => setLightbox(Math.min(images.length - 1, lightbox + 1))}><ChevronRight size={24} /></button></div> : <div className={styles.tourContent}><h2>Photo tour</h2><nav className={styles.tourThumbnails} aria-label="Photo tour navigation">{images.map((url,index)=><button key={`thumb-${index}`} onClick={()=>document.getElementById(`tour-photo-${index}`)?.scrollIntoView({behavior:window.matchMedia("(prefers-reduced-motion: reduce)").matches?"instant":"smooth",block:"start"})}><span><Image src={url} alt="" fill sizes="148px" /></span>Photo {index+1}</button>)}</nav><div className={styles.tourPhotos}><h3>Photos</h3><div className={styles.tourGrid}>{images.map((url, index) => <button id={`tour-photo-${index}`} key={`${url}-${index}`} onClick={() => { viewerOpener.current = index; setLightbox(index); }} aria-label={`View photo ${index + 1}`}><Image src={url} alt={`Photo ${index + 1} of ${title}`} fill sizes="(max-width: 744px) 100vw, 744px" /></button>)}</div></div></div>}
     </div>, document.body)}

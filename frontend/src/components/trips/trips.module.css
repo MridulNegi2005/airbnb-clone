@@ -113,7 +113,8 @@
   .expandedSheet { transform:translateY(0); }
   .sheetHandle { display:grid; place-items:start center; flex:0 0 19px; width:calc(100% + 48px); margin-inline:-24px; padding:5px 0 0; border-radius:20px 20px 0 0; touch-action:none; background:transparent; }
   .sheetHandle span { width:28px; height:3px; background:var(--text-secondary); border-radius:2px; opacity:.75; }
-  .panelContent { overflow:auto; overscroll-behavior:contain; padding:0 0 8px; scrollbar-width:none; }
+  .panelContent { flex:1; min-height:0; max-height:calc(64dvh - 89px); overflow:auto; overscroll-behavior:contain; padding:0 0 8px; scrollbar-width:none; }
+  .expandedSheet .panelContent { max-height:none; }
   .panelContent > h1 { margin:5px 0 25px; line-height:30px; }
   .detailHeading { margin:0 0 20px; }
   .detailBack { left:-5px; }
