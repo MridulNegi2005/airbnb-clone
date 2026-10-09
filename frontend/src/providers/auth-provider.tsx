@@ -27,26 +27,42 @@ export function AuthProvider({children}: {children:ReactNode}) {
   const [showPassword,setShowPassword]=useState(false),[error,setError]=useState(""),[pending,setPending]=useState(false);
   const passwordField=useRef<HTMLInputElement>(null);
   const authLock=useRef(false);
+  const sessionVersion=useRef(0),stopRestore=useRef<(()=>void)|undefined>(undefined);
   useEffect(()=>{if(!open||step!==1)return;const frame=requestAnimationFrame(()=>passwordField.current?.focus({preventScroll:true}));return()=>cancelAnimationFrame(frame);},[open,step]);
   const success=useRef<(()=>void)|undefined>(undefined),cancel=useRef<(()=>void)|undefined>(undefined);
   const owned=useQuery({queryKey:queryKeys.hostListings,queryFn:({signal})=>getHostListings(signal),enabled:status==="authenticated"});
   const openAuth=useCallback((onSuccess?:()=>void,onCancel?:()=>void,initialMode:"login"|"register"="login")=>{success.current=onSuccess;cancel.current=onCancel;setError("");setPassword("");setShowPassword(false);setMode(initialMode);setStep(0);setOpen(true);},[]);
   useEffect(()=>{
-    let active=true;
-    const controller=new AbortController();
-    Promise.resolve().then(async()=>{
-      const initialToken=getToken();
-      if(!initialToken) {if(active)setStatus("anonymous");return;}
-      try {const current=await getCurrentUser(controller.signal);if(active&&getToken()===initialToken){setUser(current);setStatus("authenticated");}}
-      catch(reason) {if(active&&getToken()===initialToken){if(reason instanceof ApiError&&reason.status===401)clearToken();setStatus("anonymous");}}
-    });
-    const expired=()=>{setUser(null);setStatus("anonymous");client.removeQueries({predicate:q=>["wishlists","saved-listings","bookings","host-listings","host-listing","host-bookings","conversations","messages","unread-count"].includes(String(q.queryKey[0]))});openAuth();};
+    let active=true,inFlight=false,attempt=0,retryAt=0,timer:number|undefined,controller:AbortController|undefined,notice:ReturnType<typeof toast>|undefined;
+    const version=sessionVersion.current,initialToken=getToken();
+    const current=()=>active&&sessionVersion.current===version&&getToken()===initialToken;
+    const stop=()=>{active=false;controller?.abort();if(timer!==undefined)window.clearTimeout(timer);if(notice!==undefined){toast.dismiss(notice);notice=undefined;}};
+    stopRestore.current=stop;
+    const expired=()=>{sessionVersion.current++;stop();clearToken();setUser(null);setStatus("anonymous");client.removeQueries({predicate:q=>["wishlists","saved-listings","bookings","host-listings","host-listing","host-bookings","conversations","messages","unread-count"].includes(String(q.queryKey[0]))});openAuth();};
+    async function restore(){
+      if(!current()||inFlight||Date.now()<retryAt)return;
+      if(!initialToken){setStatus("anonymous");return;}
+      inFlight=true;controller=new AbortController();
+      try {const restored=await getCurrentUser(controller.signal);if(current()){setUser(restored);setStatus("authenticated");stop();}}
+      catch(reason){
+        if(!current())return;
+        if(reason instanceof ApiError&&reason.status===401){expired();return;}
+        if(notice===undefined)notice=toast("Reconnecting to your account",{description:"We’re having trouble connecting. We’ll retry automatically. You can keep browsing.",duration:Infinity});
+        const delay=Math.max(Math.min(1000*2**Math.min(attempt++,5),30_000),reason instanceof ApiError?reason.retryAfterSeconds*1000:0);
+        retryAt=Date.now()+delay;
+        timer=window.setTimeout(()=>{timer=undefined;void restore();},delay);
+      }finally{inFlight=false;}
+    }
+    const recover=()=>{if(timer!==undefined&&Date.now()>=retryAt){window.clearTimeout(timer);timer=undefined;}void restore();};
+    Promise.resolve().then(restore);
     window.addEventListener("auth-expired",expired);
-    return ()=>{active=false;controller.abort();window.removeEventListener("auth-expired",expired);};
+    window.addEventListener("online",recover);window.addEventListener("focus",recover);
+    return ()=>{stop();if(stopRestore.current===stop)stopRestore.current=undefined;window.removeEventListener("auth-expired",expired);window.removeEventListener("online",recover);window.removeEventListener("focus",recover);};
   },[client,openAuth]);
-  const logout=()=>{clearToken();setUser(null);setStatus("anonymous");client.removeQueries({predicate:q=>["wishlists","saved-listings","bookings","host-listings","host-listing","host-bookings","conversations","messages","unread-count"].includes(String(q.queryKey[0]))});toast("Logged out");};
+  const logout=()=>{sessionVersion.current++;stopRestore.current?.();clearToken();setUser(null);setStatus("anonymous");client.removeQueries({predicate:q=>["wishlists","saved-listings","bookings","host-listings","host-listing","host-bookings","conversations","messages","unread-count"].includes(String(q.queryKey[0]))});toast("Logged out");};
   const close=useCallback(()=>{if(pending||authLock.current)return;setOpen(false);cancel.current?.();cancel.current=undefined;success.current=undefined;},[pending]);
   async function authenticate(result:import("@/types/api").AuthResponse) {
+    sessionVersion.current++;stopRestore.current?.();
     setToken(result.access_token);setUser(result.user);setStatus("authenticated");setOpen(false);setPassword("");
     await client.invalidateQueries({queryKey:queryKeys.hostListings});
     toast(`Welcome back, ${result.user.name.split(" ")[0]}`);
@@ -58,6 +74,7 @@ export function AuthProvider({children}: {children:ReactNode}) {
     authLock.current=true;setPending(true);
     try {
       const result=mode==="login"?await login({email,password}):await register({name,email,password});
+      sessionVersion.current++;stopRestore.current?.();
       setToken(result.access_token);setUser(result.user);setStatus("authenticated");setOpen(false);setPassword("");
       await client.invalidateQueries({queryKey:queryKeys.hostListings});
       toast(`Welcome${mode==="login"?" back":""}, ${result.user.name.split(" ")[0]}`);

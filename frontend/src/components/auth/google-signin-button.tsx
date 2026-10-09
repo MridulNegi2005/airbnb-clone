@@ -14,6 +14,8 @@ export function GoogleSignInButton({onSuccess,onError,disabled=false,onStart,onS
   const [ready,setReady]=useState(false),[pending,setPending]=useState(false);
   const cooldown=useApiCooldown();
   const inFlight=useRef(false),blocked=useRef(false),record=useRef(cooldown.record);
+  const mounted=useRef(true);
+  useEffect(()=>{mounted.current=true;return()=>{mounted.current=false;};},[]);
   const external=useRef({disabled,onStart,onSettled});
   useEffect(()=>{external.current={disabled,onStart,onSettled};},[disabled,onStart,onSettled]);
   useEffect(()=>{blocked.current=cooldown.blocked;record.current=cooldown.record;},[cooldown.blocked,cooldown.record]);
@@ -23,10 +25,10 @@ export function GoogleSignInButton({onSuccess,onError,disabled=false,onStart,onS
     const identity=(window as unknown as Window & {google?:GoogleIdentity}).google?.accounts?.id;
     if(!clientId||!identity||!container.current)return;
     identity.initialize({client_id:clientId,ux_mode:"popup",use_fedcm_for_prompt:true,callback:response=>{
-      if(inFlight.current||blocked.current||external.current.disabled||external.current.onStart?.()===false)return;
+      if(!mounted.current||inFlight.current||blocked.current||external.current.disabled||external.current.onStart?.()===false)return;
       inFlight.current=true;
       setPending(true);
-      void googleLogin({credential:response.credential}).then(result=>success.current(result)).catch(reason=>{record.current(reason);failure.current(reason instanceof Error?reason.message:"Google sign-in failed");}).finally(()=>{inFlight.current=false;setPending(false);external.current.onSettled?.();});
+      void googleLogin({credential:response.credential}).then(result=>{if(mounted.current)return success.current(result);}).catch(reason=>{if(mounted.current){record.current(reason);failure.current(reason instanceof Error?reason.message:"Google sign-in failed");}}).finally(()=>{inFlight.current=false;if(mounted.current)setPending(false);external.current.onSettled?.();});
     }});
     identity.renderButton(container.current,{theme:"outline",size:"large",shape:"rectangular",text:"continue_with",width:Math.min(400,container.current.clientWidth||360)});
     setReady(true);
