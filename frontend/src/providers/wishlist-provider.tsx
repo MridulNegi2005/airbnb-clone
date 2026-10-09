@@ -193,10 +193,11 @@ export function WishlistProvider({ children }: { children: ReactNode }) {
         <div className="wishlist-name-input"><label htmlFor="new-wishlist-name">Name</label><input disabled={pending} ref={nameInput} id="new-wishlist-name" maxLength={50} required value={name} onChange={event => setName(event.target.value)} />{name&&<button type="button" className="icon-button" aria-label="Clear wishlist name" disabled={pending} onClick={()=>{if(modalPending.current)return;setName("");nameInput.current?.focus({preventScroll:true});}}><X size={16}/></button>}</div>
         <span className="muted small">{name.length}/50</span>
       </form> : <>
-        {lists.isPending ? <p aria-live="polite">Loading your wishlists…</p> : lists.isError ? <div role="alert"><p>{lists.error.message}</p><button className="text-button" disabled={cooldown.blocked} onClick={() => void lists.refetch()}>Try again</button></div> : <div className="wishlist-picker-grid">
+        {lists.isPending ? <div className="wishlist-picker-loading" role="status" aria-label="Loading your wishlists"><span className="skeleton"/><span className="skeleton"/><span className="skeleton"/></div> : lists.isError ? <div role="alert"><p>{lists.error.message}</p><button className="text-button" disabled={cooldown.blocked} onClick={() => void lists.refetch()}>Try again</button></div> : <div className="wishlist-picker-grid">
+          {!lists.data?.length&&<p className="muted wishlist-picker-empty">Create your first wishlist to save places you love.</p>}
           {lists.data?.map(list => <button key={list.id} type="button" disabled={disabled} className="wishlist-picker-card" onClick={() => void choose(list.id, list.name)}>
-            <span className="wishlist-cover">{list.cover_image_url ? <AppImage src={list.cover_image_url} alt="" fill sizes="240px" /> : <Heart size={40} />}</span>
-            <strong>{list.name}</strong><span className="muted small">{list.item_count} saved</span>
+            <span className="wishlist-cover">{list.cover_image_url ? <AppImage src={list.cover_image_url} alt="" fill sizes="64px" /> : <Heart size={24} />}</span>
+            <span className="wishlist-picker-copy"><strong>{list.name}</strong><span className="muted small">{list.item_count} saved</span></span>
           </button>)}
         </div>}
       </>}
