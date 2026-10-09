@@ -15,6 +15,7 @@ import { useSearch } from "@/hooks/use-search";
 import { GuestPanel, type GuestCounts } from "./guest-panel";
 import { DatePanel } from "./date-panel";
 import styles from "./search.module.css";
+import { usePreloadDatePicker } from "@/components/calendar/lazy-date-picker";
 
 type Segment = "where" | "checkin" | "checkout" | "who";
 const destinations = [
@@ -45,6 +46,7 @@ function SearchPanel({open,className,children,switching,style,onHeightChange}:{o
   return mounted?<div ref={panel} hidden={!present} style={style} className={`${styles.panel} ${className}`} data-state={open?"open":"closing"} data-transition={switching?"switch":"open"} aria-hidden={!open} inert={!open}>{children}</div>:null;
 }
 export function SearchBar({ onClose, homepage=false, startOpen=false, onActiveChange }: { onClose?: () => void; homepage?:boolean; startOpen?:boolean; onActiveChange?:(active:boolean)=>void }) {
+  usePreloadDatePicker();
   const { params } = useSearch();
   return <SearchForm key={params.toString()} onClose={onClose} homepage={homepage} startOpen={startOpen} onActiveChange={onActiveChange} />;
 }

@@ -5,7 +5,7 @@ import { Heart, Share } from "lucide-react";
 import { useRouter, useSearchParams } from "next/navigation";
 import { useEffect, useState } from "react";
 import { toast } from "sonner";
-import { DatePicker } from "@/components/calendar/date-picker";
+import { DatePicker, usePreloadDatePicker } from "@/components/calendar/lazy-date-picker";
 import { useAvailability } from "@/hooks/use-availability";
 import { useWishlist } from "@/hooks/use-wishlist";
 import { getQuote, queryKeys } from "@/lib/api";
@@ -25,6 +25,7 @@ function guestValue(value: string | null, minimum: number, maximum: number): num
 }
 
 export function ListingDetailView({ listing, initialReviews }: { listing: ListingDetail; initialReviews: ReviewPage }) {
+  usePreloadDatePicker();
   const router = useRouter();
   const search = useSearchParams();
   const auth = useAuth();

@@ -3,7 +3,7 @@
 import { ChevronDown, ChevronUp, Flag, X } from "lucide-react";
 import { useEffect, useRef, useState, useSyncExternalStore, type ButtonHTMLAttributes } from "react";
 import type { DateRange } from "react-day-picker";
-import { DatePicker } from "@/components/calendar/date-picker";
+import { DatePicker } from "@/components/calendar/lazy-date-picker";
 import { GradientButton } from "@/components/ui/gradient-button";
 import { Modal } from "@/components/ui/modal";
 import { Stepper } from "@/components/ui/stepper";

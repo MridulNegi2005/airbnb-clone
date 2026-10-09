@@ -2,7 +2,7 @@
 import { useState, useSyncExternalStore } from "react";
 import type { DateRange } from "react-day-picker";
 import { Modal } from "@/components/ui/modal";
-import { DatePicker } from "@/components/calendar/date-picker";
+import { DatePicker } from "@/components/calendar/lazy-date-picker";
 import { Stepper } from "@/components/ui/stepper";
 import { toDateString, validateStay } from "@/lib/dates";
 import { formatGuests } from "@/lib/format";

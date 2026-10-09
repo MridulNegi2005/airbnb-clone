@@ -4,7 +4,7 @@ import type { DateRange } from "react-day-picker";
 import { DayPicker } from "react-day-picker";
 import { Calendar, ChevronLeft, ChevronRight } from "lucide-react";
 import { useEffect, useRef, useState } from "react";
-import { DatePicker } from "@/components/calendar/date-picker";
+import { DatePicker } from "@/components/calendar/lazy-date-picker";
 import styles from "./search.module.css";
 
 type DatePanelProps={value:DateRange|undefined;onChange:(value:DateRange|undefined)=>void;selectedMode?:string;onModeChange?:(mode:string)=>void;search?:boolean};
