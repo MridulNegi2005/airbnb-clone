@@ -4,7 +4,7 @@ import { useEffect, useRef, useState, useSyncExternalStore } from "react";
 import Link from "next/link";
 import dynamic from "next/dynamic";
 import { ArrowLeft, ChevronRight, Eye, Heart, MoreHorizontal, Pencil, Share2, Trash2, X } from "lucide-react";
-import { useQuery, useQueryClient } from "@tanstack/react-query";
+import { useQueries, useQuery, useQueryClient } from "@tanstack/react-query";
 import type { DateRange } from "react-day-picker";
 import { toast } from "sonner";
 import { useRouter } from "next/navigation";
@@ -16,7 +16,7 @@ import { AppImage } from "@/components/ui/app-image";
 import { ListingCard } from "@/components/listings/listing-card";
 import { Modal } from "@/components/ui/modal";
 import { useApiCooldown } from "@/hooks/use-api-cooldown";
-import type { SavedListing, WishlistSummary } from "@/types/api";
+import type { SavedListing, WishlistDetail, WishlistSummary } from "@/types/api";
 import { WishlistDialog } from "./wishlist-dialog";
 import styles from "./wishlists.module.css";
 
@@ -26,8 +26,14 @@ const isDesktop = () => window.matchMedia("(min-width:1128px)").matches;
 const DatePanel = dynamic(() => import("@/components/search/date-panel").then(module => module.DatePanel), { loading: () => <p role="status">Loading calendar…</p> });
 type DialogMode = "settings" | "rename" | "delete" | "dates" | "guests" | null;
 
+function coverImages(listings: WishlistDetail["listings"]) {
+  const images = listings.map(listing => listing.image_urls[0]).filter((image): image is string => Boolean(image));
+  for (const listing of listings) for (const image of listing.image_urls.slice(1)) if (images.length < 4 && !images.includes(image)) images.push(image);
+  return images.slice(0, 4);
+}
+
 export function WishlistsView({ id }: { id?: number }) {
-  const { status, openAuth } = useAuth();
+  const { user, status, openAuth } = useAuth();
   const client = useQueryClient(), router = useRouter(), cooldown = useApiCooldown();
   const prompted = useRef(false), operationPending = useRef(false);
   const [mode, setMode] = useState<DialogMode>(null);
@@ -38,6 +44,7 @@ export function WishlistsView({ id }: { id?: number }) {
   const [guests, setGuests] = useState(1), [draftGuests, setDraftGuests] = useState(1);
   const desktop = useSyncExternalStore(subscribeDesktop, isDesktop, () => false);
   const lists = useQuery({ queryKey: queryKeys.wishlists, queryFn: ({ signal }) => getWishlists(signal), enabled: status === "authenticated" && id === undefined });
+  const covers = useQueries({ queries: (id === undefined ? lists.data ?? [] : []).map(list => ({ queryKey: queryKeys.wishlistDetail(list.id), queryFn: ({ signal }: { signal: AbortSignal }) => getWishlist(list.id, signal), enabled: status === "authenticated" && list.item_count > 1 })) });
   const detail = useQuery({ queryKey: queryKeys.wishlistDetail(id ?? 0), queryFn: ({ signal }) => getWishlist(id!, signal), enabled: status === "authenticated" && id !== undefined });
   const saved = useQuery({ queryKey: queryKeys.savedListings, queryFn: ({ signal }) => getSavedListings(signal), enabled: status === "authenticated" && id !== undefined });
   useEffect(() => { if (status === "anonymous" && !prompted.current) { prompted.current = true; openAuth(); } }, [status, openAuth]);
@@ -88,7 +95,7 @@ export function WishlistsView({ id }: { id?: number }) {
   if (id === undefined) return <section className={styles.page}>
     <header className={styles.heading}><h1>Wishlists</h1></header>
     {lists.data?.length ? <div className={styles.collections}>{lists.data.map((list, index) => <Link href={`/wishlists/${list.id}`} key={list.id} className={styles.collection} aria-label={`Wishlist for ${list.name}, ${list.item_count} saved`}>
-      <div className={styles.cover}>{list.cover_image_url ? <AppImage src={list.cover_image_url} alt="" fill priority={index === 0} sizes="(max-width:743px) calc((100vw - 64px)/2), (max-width:1127px) calc((100vw - 144px)/3), 302px" /> : <Heart size={48} />}</div>
+      <div className={styles.cover}>{covers[index]?.data && covers[index].data.listings.length > 1 ? <div className={styles.collage}>{coverImages(covers[index].data.listings).map((image, tile) => <span key={tile}><AppImage src={image} alt="" fill sizes="151px" /></span>)}</div> : list.cover_image_url ? <AppImage src={list.cover_image_url} alt="" fill priority={index === 0} sizes="(max-width:743px) calc((100vw - 64px)/2), (max-width:1127px) calc((100vw - 144px)/3), 302px" /> : <Heart size={48} />}{user && list.item_count > 0 && <span className={styles.ownerAvatar} aria-label={`Wishlist owner: ${user.name}`}>{user.avatar_url ? <AppImage src={user.avatar_url} alt="" fill sizes="24px" /> : user.name.slice(0, 1)}</span>}</div>
       <h2>{list.name}</h2><p>{list.item_count} saved</p>
     </Link>)}</div> : <div className={styles.empty}><h2>Your next trip starts here</h2><p>Tap the heart on a place you love to save it to a wishlist.</p><Link href="/" className="dark-button">Start exploring</Link></div>}
   </section>;

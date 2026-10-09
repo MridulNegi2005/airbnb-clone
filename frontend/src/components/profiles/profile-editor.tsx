@@ -14,11 +14,13 @@ import { ProfileLoading, ProfileSignIn } from "./profile-states";
 import { LanguagesModal } from "./languages-modal";
 import { useProfileCooldown } from "./use-profile-cooldown";
 import styles from "./profiles.module.css";
+import { PublicProfile } from "./public-profile";
 
-export function ProfileEditor() {
+export function ProfileEditor({ edit = true }: { edit?: boolean }) {
   const { user, status } = useAuth();
   if (status === "loading") return <ProfileLoading />;
   if (!user) return <ProfileSignIn title="Edit your profile" />;
+  if (!edit) return <PublicProfile id={user.id} account />;
   return <Editor key={user.id} user={user} />;
 }
 
