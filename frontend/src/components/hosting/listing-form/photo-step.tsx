@@ -9,33 +9,67 @@ import styles from './listing-form.module.css';
 
 type FailedUpload = { file: File; message: string };
 type PendingUpload = { file: File; progress: UploadProgress };
-function loadImage(url: string): Promise<void> { return new Promise((resolve, reject) => { const image = new window.Image(); const timer = setTimeout(() => { image.src = ''; reject(new Error('The photo took too long to load. Try a different URL.')); }, 10000); image.onload = () => { clearTimeout(timer); resolve(); }; image.onerror = () => { clearTimeout(timer); reject(new Error('This image could not load. Check the URL and try again.')); }; image.src = url; }); }
+function loadImage(url: string, signal: AbortSignal): Promise<void> {
+  return new Promise((resolve, reject) => {
+    if (signal.aborted) { reject(signal.reason); return; }
+    const image = new window.Image();
+    const cleanup = () => { clearTimeout(timer); signal.removeEventListener('abort', abort); image.onload = null; image.onerror = null; };
+    const abort = () => { cleanup(); image.src = ''; reject(signal.reason); };
+    const timer = setTimeout(() => { cleanup(); image.src = ''; reject(new Error('The photo took too long to load. Try a different URL.')); }, 10000);
+    image.onload = () => { cleanup(); resolve(); };
+    image.onerror = () => { cleanup(); reject(new Error('This image could not load. Check the URL and try again.')); };
+    signal.addEventListener('abort', abort, { once: true });
+    image.src = url;
+  });
+}
 export function PhotoStep({ photos, onChange, onBusyChange }: { photos: string[]; onChange: (photos: string[]) => void; onBusyChange: (busy: boolean) => void }) {
   const [url, setUrl] = useState(''), [error, setError] = useState(''), [busy, setBusy] = useState(false), [uploading, setUploading] = useState<PendingUpload[]>([]), [failures, setFailures] = useState<FailedUpload[]>([]), [tab, setTab] = useState<'upload' | 'url'>('upload'), [cooldown, setCooldown] = useState(0);
   const latest = useRef(photos);
   const uploadLock = useRef(false);
+  const operation = useRef<AbortController | null>(null);
+  const mounted = useRef(false);
+  useEffect(() => { mounted.current = true; return () => { mounted.current = false; operation.current?.abort(); }; }, []);
   const input = useRef<HTMLInputElement>(null);
   const sensors = useSensors(useSensor(PointerSensor, { activationConstraint: { distance: 8 } }), useSensor(KeyboardSensor, { coordinateGetter: sortableKeyboardCoordinates }));
   useEffect(() => { onBusyChange(busy || uploading.length > 0); return () => onBusyChange(false); }, [busy, uploading.length, onBusyChange]);
   useEffect(() => { if (cooldown <= 0) return; const timer = setTimeout(() => setCooldown(0), cooldown * 1000); return () => clearTimeout(timer); }, [cooldown]);
   function addPhoto(value: string) { const current = latest.current; if (current.length >= 20) throw new Error('You can add up to 20 photos.'); if (current.includes(value)) throw new Error('This photo is already added.'); latest.current = [...current, value]; onChange(latest.current); }
-  async function addUrl() { setError(''); try { const parsed = new URL(url); if (parsed.protocol !== 'https:') throw new Error('Use an HTTPS image URL.'); if (photos.length >= 20) throw new Error('You can add up to 20 photos.'); setBusy(true); await loadImage(parsed.href); addPhoto(parsed.href); setUrl(''); } catch (problem) { setError(problem instanceof Error ? problem.message : 'Could not add photo.'); } finally { setBusy(false); } }
+  async function addUrl() {
+    const controller = new AbortController(); operation.current = controller;
+    setError('');
+    try {
+      const parsed = new URL(url);
+      if (parsed.protocol !== 'https:') throw new Error('Use an HTTPS image URL.');
+      if (photos.length >= 20) throw new Error('You can add up to 20 photos.');
+      setBusy(true); await loadImage(parsed.href, controller.signal);
+      if (!mounted.current || controller.signal.aborted) return;
+      addPhoto(parsed.href); setUrl('');
+    } catch (problem) { if (mounted.current && !controller.signal.aborted) setError(problem instanceof Error ? problem.message : 'Could not add photo.'); }
+    finally { if (operation.current === controller) operation.current = null; if (mounted.current) setBusy(false); }
+  }
   async function uploadFiles(files: File[]) {
     if (uploadLock.current || busy || cooldown > 0) return;
     uploadLock.current = true;
+    const controller = new AbortController(); operation.current = controller;
     latest.current = photos;
     let cursor = 0;
     setUploading(files.map(file => ({ file, progress: { phase: 'queued', retry: 0, waitSeconds: 0 } })));
-    async function worker() { while (cursor < files.length) {
+    try { while (cursor < files.length && mounted.current && !controller.signal.aborted) {
       const file = files[cursor++]; if (!file) continue;
       setError(''); if (!['image/jpeg', 'image/png', 'image/webp'].includes(file.type)) { setFailures(old => [...old, { file, message: 'Use JPEG, PNG or WebP.' }]); setUploading(old => old.filter(item => item.file !== file)); continue; }
       if (file.size > 8 * 1024 * 1024) { setFailures(old => [...old, { file, message: 'That photo is too large (max 8 MB).' }]); setUploading(old => old.filter(item => item.file !== file)); continue; }
       if (latest.current.length >= 20) { setError('You can add up to 20 photos.'); break; }
       setUploading(old => old.map(item => item.file === file ? { ...item, progress: { phase: 'uploading', retry: 0, waitSeconds: 0 } } : item));
-      try { const result = await uploadPhoto(file, { onProgress: progress => setUploading(old => old.map(item => item.file === file ? { ...item, progress } : item)) }); addPhoto(result.url); } catch (problem) { if (problem instanceof ApiError && problem.status === 429) { setCooldown(problem.retryAfterSeconds || 60); for (const queued of files.slice(cursor)) setFailures(old => [...old, { file: queued, message: 'Upload paused. Try again after the rate limit resets.' }]); cursor = files.length; } setFailures(old => [...old, { file, message: problem instanceof Error ? problem.message : 'Upload failed.' }]); } finally { setUploading(old => old.filter(item => item.file !== file)); }
+      try {
+        const result = await uploadPhoto(file, { signal: controller.signal, onProgress: progress => { if (mounted.current && !controller.signal.aborted) setUploading(old => old.map(item => item.file === file ? { ...item, progress } : item)); } });
+        if (mounted.current && !controller.signal.aborted) addPhoto(result.url);
+      } catch (problem) {
+        if (!mounted.current || controller.signal.aborted) break;
+        if (problem instanceof ApiError && problem.status === 429) { setCooldown(problem.retryAfterSeconds || 60); for (const queued of files.slice(cursor)) setFailures(old => [...old, { file: queued, message: 'Upload paused. Try again after the rate limit resets.' }]); cursor = files.length; }
+        setFailures(old => [...old, { file, message: problem instanceof Error ? problem.message : 'Upload failed.' }]);
+      } finally { if (mounted.current && !controller.signal.aborted) setUploading(old => old.filter(item => item.file !== file)); }
     } }
-    try { await worker(); }
-    finally { setUploading([]); uploadLock.current = false; }
+    finally { if (mounted.current) setUploading([]); if (operation.current === controller) operation.current = null; uploadLock.current = false; }
   }
   function selectFiles(event: ChangeEvent<HTMLInputElement>) { if (event.target.files) void uploadFiles(Array.from(event.target.files)); event.target.value = ''; }
   function move(index: number, target: number) { latest.current=arrayMove(photos,index,target);onChange(latest.current); }
