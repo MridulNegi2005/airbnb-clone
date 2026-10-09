@@ -17,15 +17,28 @@ import { CompactSearchContent } from "./compact-search-content";
 
 const SearchBar=dynamic(()=>import("@/components/search/search-bar").then(module=>module.SearchBar),{loading:()=> <div className="page-shell" role="status" style={{minHeight:72,paddingBlock:24}}>Loading search…</div>});
 
+// The tab videos are decoration: start them only once the page and its main photo have loaded.
+function useAfterPageLoad() {
+  const [allowed,setAllowed]=useState(false);
+  useEffect(()=>{
+    let handle:number|undefined;
+    const allow=()=>{handle=window.setTimeout(()=>setAllowed(true),300);};
+    if(document.readyState==="complete")allow();else window.addEventListener("load",allow,{once:true});
+    return()=>{window.removeEventListener("load",allow);if(handle!==undefined)window.clearTimeout(handle);};
+  },[]);
+  return allowed;
+}
+
 function SearchTypeIcon({asset,selected,active,video}:{asset:string;selected:string;active:boolean;video:string}) {
   const [ready,setReady]=useState(false);
   const [videoReady,setVideoReady]=useState(false),[selectionReady,setSelectionReady]=useState(false),[selectedPlayed,setSelectedPlayed]=useState(false);
   const art=useRef<HTMLSpanElement>(null);
   const twirl=useRef<HTMLVideoElement>(null),selection=useRef<HTMLVideoElement>(null),lastActive=useRef(active);
+  const videosAllowed=useAfterPageLoad();
   const videoRoot="https://a0.muscache.com/videos/search-bar-icons/";
   const twirlSource=video==="globe"?`${videoRoot}unified/webm/Globe_Twirl_On_180px_01.webm`:`${videoRoot}webm/${video}-twirl.webm`;
   const selectedSource=video==="globe"?`${videoRoot}unified/webm/Globe_Selected_180px_01.webm`:`${videoRoot}webm/${video}-selected.webm`;
-  useEffect(()=>{if(!window.matchMedia("(prefers-reduced-motion: reduce)").matches)void twirl.current?.play().catch(()=>{});},[]);
+  useEffect(()=>{if(videosAllowed&&!window.matchMedia("(prefers-reduced-motion: reduce)").matches)void twirl.current?.play().catch(()=>{});},[videosAllowed]);
   useEffect(()=>{if(lastActive.current!==active&&active&&!window.matchMedia("(prefers-reduced-motion: reduce)").matches&&selection.current){selection.current.currentTime=0;void selection.current.play().catch(()=>{});const frame=requestAnimationFrame(()=>setSelectedPlayed(true));lastActive.current=active;return()=>cancelAnimationFrame(frame);}lastActive.current=active;},[active]);
   useEffect(()=>{
     const frame=requestAnimationFrame(()=>{
@@ -34,7 +47,7 @@ function SearchTypeIcon({asset,selected,active,video}:{asset:string;selected:str
     });
     return()=>cancelAnimationFrame(frame);
   },[active]);
-  return <span ref={art} className={styles.tabArt}><span className={`${styles.tabMotion} ${ready?styles.tabReady:""}`} data-video-ready={videoReady} data-selected-video={active&&selectedPlayed&&selectionReady}><AppImage className={styles.tabDefault} src={`https://a0.muscache.com/im/pictures/${asset}?im_w=240`} width={72} height={72} alt="" unoptimized loading="eager" onLoad={()=>{if(!active)setReady(true);}}/><AppImage className={styles.tabSelected} src={`https://a0.muscache.com/im/pictures/${selected}?im_w=240`} width={72} height={72} alt="" unoptimized loading="eager" onLoad={()=>{if(active)setReady(true);}}/><video ref={twirl} className={styles.tabTwirl} src={twirlSource} width={72} height={72} muted playsInline preload="auto" aria-hidden="true" onLoadedData={()=>{setVideoReady(true);setReady(true);}}/><video ref={selection} className={styles.tabSelection} onLoadedData={()=>setSelectionReady(true)} src={selectedSource} width={72} height={72} muted playsInline preload="auto" aria-hidden="true"/></span></span>;
+  return <span ref={art} className={styles.tabArt}><span className={`${styles.tabMotion} ${ready?styles.tabReady:""}`} data-video-ready={videoReady} data-selected-video={active&&selectedPlayed&&selectionReady}><AppImage className={styles.tabDefault} src={`https://a0.muscache.com/im/pictures/${asset}?im_w=240`} width={72} height={72} alt="" unoptimized loading="eager" onLoad={()=>{if(!active)setReady(true);}}/><AppImage className={styles.tabSelected} src={`https://a0.muscache.com/im/pictures/${selected}?im_w=240`} width={72} height={72} alt="" unoptimized loading="eager" onLoad={()=>{if(active)setReady(true);}}/><video ref={twirl} className={styles.tabTwirl} src={videosAllowed?twirlSource:undefined} width={72} height={72} muted playsInline preload="auto" aria-hidden="true" onLoadedData={()=>{setVideoReady(true);setReady(true);}}/><video ref={selection} className={styles.tabSelection} onLoadedData={()=>setSelectionReady(true)} src={videosAllowed?selectedSource:undefined} width={72} height={72} muted playsInline preload="auto" aria-hidden="true"/></span></span>;
 }
 
 function Header({hosting=false}:{hosting?:boolean}) {
