@@ -1,0 +1,8 @@
+.logo.logo.logo{width:102px;min-width:0;height:80px;flex-shrink:0;gap:0;font-size:14px;font-weight:400;letter-spacing:normal}
+.logo.logo>img{height:32px;object-fit:contain}
+.logo.logo>.wordmark{display:block;width:102px}
+.logo.logo>.belo{display:none;width:30px}
+.logo.logo.compact{width:30px;min-width:0;height:32px}
+.logo.compact>.wordmark{display:none}
+.logo.compact>.belo{display:block}
+@media(max-width:1127px){.logo.logo.logo{width:30px}.logo.logo>.wordmark{display:none}.logo.logo>.belo{display:block}}
