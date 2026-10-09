@@ -1,0 +1,36 @@
+"use client";
+
+import { useRef, useState } from "react";
+import Link from "next/link";
+import { useQuery } from "@tanstack/react-query";
+import { ChevronLeft, ChevronRight, Map as MapIcon, PanelLeftClose, PanelLeftOpen, ShieldCheck, UserRound, UsersRound } from "lucide-react";
+import { getBookings, queryKeys } from "@/lib/api";
+import type { PublicProfile } from "@/types/api";
+import { AppImage } from "@/components/ui/app-image";
+import { Modal } from "@/components/ui/modal";
+import { ProfileAvatar } from "./profile-avatar";
+import { ProfileReviews } from "./profile-reviews";
+import styles from "./profiles.module.css";
+
+export function OwnProfile({ person, account = false }: { person: PublicProfile; account?: boolean }) {
+  const [collapsed, setCollapsed] = useState(false), [tab, setTab] = useState("about"), [identityOpen, setIdentityOpen] = useState(false);
+  const [now] = useState(() => Date.now());
+  const [travelPage, setTravelPage] = useState(0);
+  const track = useRef<HTMLDivElement>(null);
+  const bookings = useQuery({ queryKey: queryKeys.bookings, queryFn: ({ signal }) => getBookings(signal) });
+  const trips = (bookings.data ?? []).filter(booking => booking.status !== "cancelled" && new Date(booking.check_out).getTime() < now);
+  const years = Math.max(0, Math.floor((now - new Date(person.created_at).getTime()) / (365.25 * 86400000)));
+  const pages = Math.max(1, Math.ceil(trips.length / 3));
+  function showTravelPage(page: number) {
+    setTravelPage(page);
+    track.current?.scrollTo({ left: page * 579, behavior: window.matchMedia("(prefers-reduced-motion: reduce)").matches ? "instant" : "smooth" });
+  }
+  const travel = <section className={styles.travelSection} id="travel-map"><div className={styles.travelHeading}><h2>Where I&apos;ve been</h2><div className={styles.travelDots} aria-label="Travel pages">{Array.from({ length: pages }, (_, page) => <button key={page} type="button" aria-label={`Travel page ${page + 1}`} aria-current={travelPage === page ? "true" : undefined} onClick={() => showTravelPage(page)} />)}</div></div>{bookings.isPending ? <div className={styles.travelTrack} aria-busy="true">{[0, 1, 2].map(item => <div className={`skeleton ${styles.travelPhoto}`} key={item} />)}</div> : bookings.isError ? <div role="alert"><p className="error-text">{bookings.error.message}</p><button type="button" className="text-button" onClick={() => void bookings.refetch()}>Try again</button></div> : trips.length ? <div className={styles.travelTrack} ref={track}>{trips.map(booking => <Link key={booking.id} href={`/trips/v1/${booking.id}`} className={styles.travelCard}><span className={styles.travelPhoto}>{booking.listing.cover_image_url && <AppImage src={booking.listing.cover_image_url} alt={booking.listing.city} fill sizes="177px" />}</span><h3>{booking.listing.city}</h3><p>{new Date(booking.check_in).toLocaleDateString("en-IN", { month: "short", year: "numeric" })}</p></Link>)}</div> : <p className={styles.travelEmpty}>Your past trips will appear here.</p>}</section>;
+
+  return <div className={styles.ownPage} data-collapsed={collapsed} data-account-profile={account}>
+    <aside className={styles.ownNavigation}><button type="button" className={styles.collapseNavigation} aria-label={collapsed ? "Expand navigation" : "Collapse navigation"} aria-expanded={!collapsed} onClick={() => setCollapsed(value => !value)}>{collapsed ? <PanelLeftOpen size={24} /> : <PanelLeftClose size={24} />}</button><nav aria-label="Profile"><button type="button" aria-current={tab === "about" ? "page" : undefined} onClick={() => setTab("about")}><span><UserRound size={26} /></span><strong>About me</strong></button><button type="button" aria-current={tab === "travel" ? "page" : undefined} onClick={() => setTab("travel")}><span><MapIcon size={26} /></span><strong>Travel map</strong></button><button type="button" aria-current={tab === "connections" ? "page" : undefined} onClick={() => setTab("connections")}><span><UsersRound size={26} /></span><strong>Connections</strong></button></nav></aside>
+    <div className={styles.ownContent}>{tab === "about" ? <><header className={styles.ownHeading}><h1>About me</h1><Link href="/account/profile?edit=1" className={styles.ownEdit}>Edit</Link></header><div className={`${styles.passport} ${styles.ownPassport}`}><div className={styles.passportIdentity}><ProfileAvatar user={person} size={104} /><h2 aria-label={person.name}>{person.name.split(" ")[0]}</h2><p>{person.listing_count > 0 ? "Host" : "Guest"}</p></div><dl className={styles.stats}><div><dt>{person.guest_review_count}</dt><dd>Reviews</dd></div><div><dt>{years}</dt><dd>Years on Airbnb</dd></div></dl></div><div className={styles.ownIdentity}>{person.is_identity_verified ? <button type="button" className={styles.identityLink} onClick={() => setIdentityOpen(true)}><ShieldCheck size={24} />Identity verified</button> : <Link href="/account/verify" className={styles.identityLink}><ShieldCheck size={24} />Verify your identity</Link>}</div>{travel}{person.about && <p className={styles.ownIntroduction}>{person.about}</p>}<ProfileReviews id={person.id} name={person.name} defaultAbout={person.listing_count ? "host" : "guest"} /></> : tab === "travel" ? <><header className={styles.ownHeading}><h1>Travel map</h1></header>{travel}</> : <><header className={styles.ownHeading}><h1>Connections</h1></header><p className={styles.connectionsEmpty}>Get to know the hosts you&apos;ve stayed with.</p><div className={styles.connectionsList}>{Array.from(new Map(trips.map(trip => [trip.listing.host.id, trip.listing.host])).values()).map(host => <Link key={host.id} href={`/users/${host.id}`}><ProfileAvatar user={host} size={48} /><span>{host.name}</span><ChevronRight size={18} /></Link>)}{!trips.length && <Link href="/">Explore places to stay</Link>}</div></>}</div>
+    <Link className={styles.ownMobileBack} href="/account"><ChevronLeft size={20} />Account</Link>
+    <Modal open={identityOpen} onClose={() => setIdentityOpen(false)} title={`${person.name}'s identity verification`} presentation="profile" width={480}><div className={styles.identityDialog}><div className={styles.identityCard}><div><h2>{person.name}</h2><p>Identity verified</p></div><ProfileAvatar user={person} size={88} /></div><p>This project uses demo identity verification. No government ID is selected, read or uploaded by this flow.</p><Link href="/account/verify" className="text-button">View verification details</Link></div></Modal>
+  </div>;
+}
