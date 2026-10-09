@@ -55,3 +55,4 @@
 @media(max-width:743px){.modal-footer{padding-bottom:calc(16px + env(safe-area-inset-bottom))}}
 @media(max-width:743px){.mobile-tab-bar{transition:transform 200ms ease-out}.mobile-tab-bar[data-hidden=true]{transform:translateY(calc(100% + 1px));pointer-events:none}}
 .compact-search{min-width:0;max-width:100%;flex-shrink:1}.compact-search>span:not(.search-circle){min-width:0;overflow:hidden;text-overflow:ellipsis}.compact-search .search-circle{flex-shrink:0}
+body [data-sonner-toast].app-toast [data-title]{font-weight:600}body [data-sonner-toast].app-toast [data-description]{color:#fff}body [data-sonner-toast].app-toast [data-button]{background:transparent;color:#fff;text-decoration:underline}body [data-sonner-toast].app-toast [data-icon]{color:#fff}

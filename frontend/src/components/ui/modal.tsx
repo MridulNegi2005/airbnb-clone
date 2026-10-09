@@ -30,6 +30,7 @@ export function Modal({open,onClose,title,children,footer,width=568,presentation
     const frame = requestAnimationFrame(()=>focusable()[0]?.focus({preventScroll:true}));
     function key(event:KeyboardEvent) {
       if(stack[stack.length-1]!==layer) return;
+      if(panel.current?.inert){if(event.key==="Tab"||event.key==="Escape"){event.preventDefault();event.stopPropagation();}return;}
       if(event.key==="Escape") { event.preventDefault(); event.stopPropagation(); closeHandler.current(); }
       if(event.key==="Tab") { const elements=focusable(), first=elements[0], last=elements[elements.length-1]; if(!first) { event.preventDefault(); panel.current?.focus(); } else if(event.shiftKey && document.activeElement===first) {event.preventDefault();last?.focus();} else if(!event.shiftKey && document.activeElement===last) {event.preventDefault();first.focus();} }
     }
@@ -37,5 +38,5 @@ export function Modal({open,onClose,title,children,footer,width=568,presentation
     return ()=>{ cancelAnimationFrame(frame); document.removeEventListener("keydown",key); const wasTop=stack[stack.length-1]===layer; const index=stack.indexOf(layer); if(index>=0) stack.splice(index,1); if(!stack.length) {document.documentElement.style.overflow=originalOverflow;document.documentElement.style.paddingRight=originalPadding;} if(wasTop&&opener?.isConnected)opener.focus({preventScroll:true}); };
   },[present,mounted]);
   if(!present || !mounted) return null;
-  return createPortal(<div className="modal-backdrop" data-state={open?"open":"closing"} onMouseDown={event=>{if(event.target===event.currentTarget)onClose();}}><div ref={panel} role="dialog" aria-modal="true" aria-labelledby={id} tabIndex={-1} className="modal-panel" data-presentation={presentation} style={{maxWidth:width}}><header className="modal-header"><button type="button" className="icon-button" aria-label="Close" onClick={onClose}><X size={18}/></button><h2 id={id} className={presentation==="reviews"||presentation==="calendar"||presentation==="profile"?"sr-only":undefined}>{title}</h2></header><div className="modal-body">{children}</div>{footer&&<div className="modal-footer">{footer}</div>}</div></div>,document.body);
+  return createPortal(<div className="modal-backdrop" data-state={open?"open":"closing"} onMouseDown={event=>{if(open&&event.target===event.currentTarget)onClose();}}><div ref={panel} role="dialog" aria-modal={open} aria-hidden={!open} inert={!open} aria-labelledby={id} tabIndex={-1} className="modal-panel" data-presentation={presentation} style={{maxWidth:width}}><header className="modal-header"><button type="button" className="icon-button" aria-label="Close" onClick={onClose}><X size={18}/></button><h2 id={id} className={presentation==="reviews"||presentation==="calendar"||presentation==="profile"?"sr-only":undefined}>{title}</h2></header><div className="modal-body">{children}</div>{footer&&<div className="modal-footer">{footer}</div>}</div></div>,document.body);
 }
