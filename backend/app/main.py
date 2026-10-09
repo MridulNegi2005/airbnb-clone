@@ -1,3 +1,4 @@
+import re
 from collections.abc import AsyncIterator, Awaitable, Callable
 from contextlib import asynccontextmanager
 from pathlib import Path
@@ -57,6 +58,37 @@ async def limit_requests(request: Request, call_next: Next) -> Response:
     return await call_next(request)
 
 
+# Public reads that never depend on the caller, with how long Cloudflare may keep them.
+_PUBLIC_READS = (
+    (
+        re.compile(r"/api/(categories|amenities|service-area)"),
+        "public, max-age=300, s-maxage=86400",
+    ),
+    (
+        re.compile(r"/api/listings/\d+/(booked-dates|quote)"),
+        "public, max-age=0, s-maxage=10, stale-while-revalidate=60",
+    ),
+    (
+        re.compile(r"/api/(listings(/\d+(/reviews)?)?|users/\d+(/listings)?)"),
+        "public, max-age=0, s-maxage=30, stale-while-revalidate=300",
+    ),
+)
+
+
+async def cache_public_reads(request: Request, call_next: Next) -> Response:
+    response = await call_next(request)
+    if request.method != "GET" or response.status_code != 200 or "authorization" in request.headers:
+        return response
+    path = _route_path(request)
+    for pattern, policy in _PUBLIC_READS:
+        if pattern.fullmatch(path):
+            response.headers["Cache-Control"] = policy
+            # One cached copy serves every visitor, so it cannot name a single origin.
+            response.headers["Access-Control-Allow-Origin"] = "*"
+            break
+    return response
+
+
 async def guard_uploads(request: Request, call_next: Next) -> Response:
     # Reject oversized uploads before the multipart parser spools the body to disk.
     path = _route_path(request)
@@ -94,6 +126,7 @@ def create_app() -> FastAPI:
         allow_headers=["Authorization", "Content-Type"],
         expose_headers=["Retry-After"],
     )
+    app.middleware("http")(cache_public_reads)
 
     for module in (
         auth,
