@@ -12,6 +12,7 @@ import { Modal } from "@/components/ui/modal";
 import type { ConversationSummary, HostBooking, Message } from "@/types/api";
 import styles from "./messages.module.css";
 import { useSendCooldown } from "./use-send-cooldown";
+import { useApiCooldown } from "@/hooks/use-api-cooldown";
 
 function Avatar({ user, small = false }: { user: ConversationSummary["other_user"]; small?: boolean }) {
   return <span className={`${styles.avatar} ${small ? styles.smallAvatar : ""}`}>{user.avatar_url ? <AppImage src={user.avatar_url} alt="" fill sizes={small ? "32px" : "48px"}/> : user.name.slice(0, 1)}</span>;
@@ -74,9 +75,18 @@ function ConversationThread({ conversation, userId, detailsOpen, mobileDetailsOp
   const initialScroll = useRef(false);
   const followLatest = useRef(true);
   const cooldown = useSendCooldown();
+  const olderCooldown = useSendCooldown();
+  const olderLock = useRef(false), olderPaused = useRef(false), olderRetryAt = useRef(0);
+  const olderActive = useRef(true), olderController = useRef<AbortController | null>(null), olderFrame = useRef<number | null>(null);
+  const { blocked: pollingBlocked, record: recordPolling } = useApiCooldown();
+  const pollingPausedRef = useRef(false), pollingRetryAt = useRef(0);
   const sending = pendingMessages.some(message => message.pending);
   const serverMessages = messages.data ?? [];
   const messagesLoaded = messages.data !== undefined;
+  useEffect(() => {
+    olderActive.current = true;
+    return () => { olderActive.current = false; olderController.current?.abort(); if (olderFrame.current !== null) cancelAnimationFrame(olderFrame.current); };
+  }, []);
 
   useEffect(() => {
     if (!messages.data) return;
@@ -91,18 +101,23 @@ function ConversationThread({ conversation, userId, detailsOpen, mobileDetailsOp
     if (!visible || !messagesLoaded || pollingPaused) return;
     let active = true;
     const controller = new AbortController();
+    function pause(error: ApiError) {
+      pollingPausedRef.current = true; pollingRetryAt.current = Math.max(pollingRetryAt.current, Date.now() + error.retryAfterSeconds * 1000);
+      recordPolling(error); setPollingPaused(true); setPollError(error.message);
+    }
     async function markRead() {
+      if (pollingPausedRef.current) return;
       try {
         await markConversationRead(conversation.id);
         if (!active) return;
         client.setQueryData<ConversationSummary[]>(queryKeys.conversations, current => current?.map(item => item.id === conversation.id ? { ...item, unread_count: 0 } : item));
         await Promise.all([client.invalidateQueries({ queryKey: queryKeys.unreadCount }), client.invalidateQueries({ queryKey: queryKeys.conversations })]);
-      } catch { /* Polling will try again when another message arrives. */ }
+      } catch (error) { if (active && error instanceof ApiError && error.status === 429) pause(error); }
     }
     void markRead();
     let busy = false;
     const timer = window.setInterval(async () => {
-      if (busy) return;
+      if (busy || pollingPausedRef.current) return;
       busy = true;
       try {
         const latest = client.getQueryData<Message[]>(queryKeys.messages(conversation.id));
@@ -113,26 +128,38 @@ function ConversationThread({ conversation, userId, detailsOpen, mobileDetailsOp
           client.setQueryData<Message[]>(queryKeys.messages(conversation.id), current => mergeMessages(current ?? [], incoming));
           void markRead();
         }
-      } catch (error) { if (active && !controller.signal.aborted) { setPollError(error instanceof Error ? error.message : "Connection lost. We’ll keep trying."); if (error instanceof ApiError && error.status === 429) setPollingPaused(true); } }
+      } catch (error) { if (active && !controller.signal.aborted) { setPollError(error instanceof Error ? error.message : "Connection lost. We’ll keep trying."); if (error instanceof ApiError && error.status === 429) pause(error); } }
       finally { busy = false; }
     }, 5000);
     return () => { active = false; controller.abort(); window.clearInterval(timer); };
-  }, [client, conversation.id, visible, messagesLoaded, pollingPaused]);
+  }, [client, conversation.id, visible, messagesLoaded, pollingPaused, recordPolling]);
+  function reconnect() {
+    if (!olderActive.current || pollingBlocked || Date.now() < pollingRetryAt.current) return;
+    pollingPausedRef.current = false; setPollError(""); setPollingPaused(false);
+  }
 
-  async function loadOlder() {
-    if (olderPending || !hasOlder || !serverMessages.length) return;
+  async function loadOlder(manual = false) {
+    if (!olderActive.current || olderLock.current || olderPending || olderCooldown.blocked || Date.now() < olderRetryAt.current || (olderPaused.current && !manual) || !hasOlder || !serverMessages.length) return;
+    olderLock.current = true; olderPaused.current = false;
+    const controller = new AbortController(); olderController.current = controller;
     setOlderPending(true); setOlderError("");
     const element = viewport.current;
     const oldHeight = element?.scrollHeight ?? 0;
     const oldTop = element?.scrollTop ?? 0;
     try {
-      const older = await getMessages(conversation.id, { before_id: serverMessages[0]?.id, limit: 50 });
+      const older = await getMessages(conversation.id, { before_id: serverMessages[0]?.id, limit: 50 }, controller.signal);
+      if (!olderActive.current || controller.signal.aborted) return;
       setHasOlder(older.length === 50);
       followLatest.current = false;
       client.setQueryData<Message[]>(messageKey, current => mergeMessages(current ?? [], older));
-      requestAnimationFrame(() => { if (element) element.scrollTop = oldTop + element.scrollHeight - oldHeight; });
-    } catch (error) { setOlderError(error instanceof Error ? error.message : "Couldn’t load older messages."); }
-    finally { setOlderPending(false); }
+      olderFrame.current = requestAnimationFrame(() => { olderFrame.current = null; if (olderActive.current && element) element.scrollTop = oldTop + element.scrollHeight - oldHeight; });
+    } catch (error) {
+      if (!olderActive.current || controller.signal.aborted) return;
+      olderCooldown.record(error);
+      if (error instanceof ApiError && error.status === 429) { olderPaused.current = true; olderRetryAt.current = Math.max(olderRetryAt.current, Date.now() + error.retryAfterSeconds * 1000); }
+      setOlderError(error instanceof Error ? error.message : "Couldn’t load older messages.");
+    }
+    finally { olderLock.current = false; if (olderController.current === controller) olderController.current = null; if (olderActive.current) setOlderPending(false); }
   }
   async function deliver(message: PendingMessage) {
     if (cooldown.blocked || deliveryLock.current) return;
@@ -156,8 +183,8 @@ function ConversationThread({ conversation, userId, detailsOpen, mobileDetailsOp
   const allMessages = [...serverMessages, ...pendingMessages];
   return <section className={styles.thread} aria-label={`Conversation with ${conversation.other_user.name}`}><header className={styles.threadHeader}><Link className={styles.mobileBack} href="/messages" aria-label="Back to messages"><ArrowLeft size={22}/></Link><Link href={`/users/${conversation.other_user.id}`} className={styles.threadIdentity}><Avatar user={conversation.other_user}/><div><h2>{conversation.other_user.name}</h2><span>{conversation.role === "guest" ? "Host" : "Guest"}</span></div></Link><button type="button" className={`${styles.headerAction} ${styles.desktopDetailsToggle}`} aria-label="Conversation details" aria-expanded={detailsOpen} onClick={onToggleDetails}><ChevronRight size={20}/></button><button type="button" className={`${styles.headerAction} ${styles.mobileDetailsToggle}`} aria-label="Conversation details" aria-expanded={mobileDetailsOpen} onClick={onToggleDetails}><ChevronRight size={20}/></button></header>
     <div className={styles.messageScroll} ref={viewport} onScroll={() => { const element = viewport.current; if (!element) return; followLatest.current = element.scrollHeight - element.scrollTop - element.clientHeight < 80; if (element.scrollTop < 48 && initialScroll.current) void loadOlder(); }} aria-live="polite">
-      {messages.isPending ? <p className={styles.listNotice}>Loading messages…</p> : messages.isError ? <ErrorState message={messages.error.message} retry={() => { void messages.refetch(); }}/> : <>{hasOlder && serverMessages.length >= 50 && <button className={styles.loadOlder} disabled={olderPending} onClick={() => { void loadOlder(); }}>{olderPending ? "Loading…" : "Load earlier messages"}</button>}{olderError && <p role="alert" className="error-text">{olderError}<button className="text-button" onClick={() => { void loadOlder(); }}>Try again</button></p>}{allMessages.length === 0 && <p className={styles.listNotice}>Say hello to {conversation.other_user.name.split(" ")[0]}.</p>}{allMessages.map((message, index) => { const own = message.sender_id === userId; const day = messageDay(message.created_at); const previous = allMessages[index - 1]; const newDay = !previous || messageDay(previous.created_at) !== day; const grouped = !newDay && previous?.sender_id === message.sender_id; const temporary = message.id < 0 ? pendingMessages.find(item => item.id === message.id) : undefined; const timestamp = new Date(message.created_at).toLocaleTimeString("en-IN", { hour: "numeric", minute: "2-digit" }); return <div key={message.id} className={temporary?.pending ? styles.enteringMessage : undefined}>{newDay && <div className={styles.day}>{new Date(message.created_at).toLocaleDateString("en-IN", { month: "short", day: "numeric", ...(new Date(message.created_at).getFullYear() !== new Date().getFullYear() ? { year: "numeric" } : {}) })}</div>}<div className={`${styles.messageRow} ${own ? styles.ownRow : ""} ${grouped ? styles.groupedRow : ""}`}>{!own && (grouped ? <span className={styles.avatarSpace}/> : <Avatar user={conversation.other_user} small/>)}<div className={styles.bubbleGroup}>{!own && !grouped && <div className={styles.senderLine}>{conversation.other_user.name.split(" ")[0]} · {conversation.role === "guest" ? "Host" : "Guest"} <time dateTime={message.created_at}>{timestamp}</time></div>}<p className={`${styles.bubble} ${own ? styles.ownBubble : ""}`} title={timestamp}>{message.body}</p><time className={styles.timestamp} dateTime={message.created_at}>{temporary?.pending ? "Sending…" : timestamp}</time>{temporary?.failed && <div className={styles.failed} role="alert"><span>{temporary.error || "Message not sent"}</span><button disabled={cooldown.blocked} onClick={() => { void deliver(temporary); }}>Retry</button></div>}</div></div></div>; })}</>}
-    </div>{pollError && <p className={styles.connection} role="status">{pollError} {pollingPaused ? <button className="text-button" onClick={() => setPollingPaused(false)}>Reconnect</button> : "Checking again shortly."}</p>}<form className={styles.composer} onSubmit={submit}><label className="sr-only" htmlFor="message-draft">Write a message</label><textarea id="message-draft" ref={textarea} rows={1} maxLength={2000} value={draft} disabled={messages.isError || messages.isPending} onChange={event => setDraft(event.target.value)} onKeyDown={event => { if (event.key === "Enter" && !event.shiftKey && !event.nativeEvent.isComposing) { event.preventDefault(); submit(); } }} placeholder="Write a message…"/><button type="submit" className={styles.send} aria-label="Send message" disabled={!draft.trim() || sending || cooldown.blocked || messages.isError || messages.isPending}><Send size={20}/></button><span className={styles.composerCount}>{draft.length}/2000</span></form>
+      {messages.isPending ? <p className={styles.listNotice}>Loading messages…</p> : messages.isError ? <ErrorState message={messages.error.message} retry={() => { void messages.refetch(); }}/> : <>{hasOlder && serverMessages.length >= 50 && <button className={styles.loadOlder} disabled={olderPending || olderCooldown.blocked} onClick={() => { void loadOlder(true); }}>{olderPending ? "Loading…" : "Load earlier messages"}</button>}{olderError && <p role="alert" className="error-text">{olderError}<button className="text-button" disabled={olderPending || olderCooldown.blocked} onClick={() => { void loadOlder(true); }}>Try again</button></p>}{allMessages.length === 0 && <p className={styles.listNotice}>Say hello to {conversation.other_user.name.split(" ")[0]}.</p>}{allMessages.map((message, index) => { const own = message.sender_id === userId; const day = messageDay(message.created_at); const previous = allMessages[index - 1]; const newDay = !previous || messageDay(previous.created_at) !== day; const grouped = !newDay && previous?.sender_id === message.sender_id; const temporary = message.id < 0 ? pendingMessages.find(item => item.id === message.id) : undefined; const timestamp = new Date(message.created_at).toLocaleTimeString("en-IN", { hour: "numeric", minute: "2-digit" }); return <div key={message.id} className={temporary?.pending ? styles.enteringMessage : undefined}>{newDay && <div className={styles.day}>{new Date(message.created_at).toLocaleDateString("en-IN", { month: "short", day: "numeric", ...(new Date(message.created_at).getFullYear() !== new Date().getFullYear() ? { year: "numeric" } : {}) })}</div>}<div className={`${styles.messageRow} ${own ? styles.ownRow : ""} ${grouped ? styles.groupedRow : ""}`}>{!own && (grouped ? <span className={styles.avatarSpace}/> : <Avatar user={conversation.other_user} small/>)}<div className={styles.bubbleGroup}>{!own && !grouped && <div className={styles.senderLine}>{conversation.other_user.name.split(" ")[0]} · {conversation.role === "guest" ? "Host" : "Guest"} <time dateTime={message.created_at}>{timestamp}</time></div>}<p className={`${styles.bubble} ${own ? styles.ownBubble : ""}`} title={timestamp}>{message.body}</p><time className={styles.timestamp} dateTime={message.created_at}>{temporary?.pending ? "Sending…" : timestamp}</time>{temporary?.failed && <div className={styles.failed} role="alert"><span>{temporary.error || "Message not sent"}</span><button disabled={cooldown.blocked} onClick={() => { void deliver(temporary); }}>Retry</button></div>}</div></div></div>; })}</>}
+    </div>{pollError && <p className={styles.connection} role="status">{pollError} {pollingPaused ? <button className="text-button" disabled={pollingBlocked} onClick={reconnect}>Reconnect</button> : "Checking again shortly."}</p>}<form className={styles.composer} onSubmit={submit}><label className="sr-only" htmlFor="message-draft">Write a message</label><textarea id="message-draft" ref={textarea} rows={1} maxLength={2000} value={draft} disabled={messages.isError || messages.isPending} onChange={event => setDraft(event.target.value)} onKeyDown={event => { if (event.key === "Enter" && !event.shiftKey && !event.nativeEvent.isComposing) { event.preventDefault(); submit(); } }} placeholder="Write a message…"/><button type="submit" className={styles.send} aria-label="Send message" disabled={!draft.trim() || sending || cooldown.blocked || messages.isError || messages.isPending}><Send size={20}/></button><span className={styles.composerCount}>{draft.length}/2000</span></form>
   </section>;
 }
 
