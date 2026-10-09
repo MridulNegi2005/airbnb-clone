@@ -1,6 +1,6 @@
 "use client";
 
-import { createContext, useContext, useEffect, useMemo, useRef, useState, type ReactNode } from "react";
+import { createContext, useCallback, useContext, useEffect, useMemo, useRef, useState, type ReactNode } from "react";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { Heart, X } from "lucide-react";
 import { toast } from "sonner";
@@ -20,8 +20,12 @@ export function WishlistProvider({ children }: { children: ReactNode }) {
   const { status, openAuth } = useAuth();
   const client = useQueryClient();
   const cooldown = useApiCooldown();
-  const lockedListings = useRef(new Set<number>());
-  const modalPending = useRef(false);
+  const { record: recordRateLimit } = cooldown;
+  const activeSession = useRef<string | null>(null);
+  const lockedListings = useRef(new Map<number, string>());
+  const queuedIntents = useRef(new Map<number, boolean>());
+  const lastClicks = useRef(new Map<number, number>());
+  const modalPending = useRef<string | null>(null);
   const needsRefresh = useRef(false);
   const [listingId, setListingId] = useState<number | null>(null);
   const [create, setCreate] = useState(false);
@@ -34,18 +38,24 @@ export function WishlistProvider({ children }: { children: ReactNode }) {
   const lists = useQuery({ queryKey: queryKeys.wishlists, queryFn: ({ signal }) => getWishlists(signal), enabled: status === "authenticated" });
   const savedIds = useMemo(() => new Set((saved.data ?? []).map(item => item.listing_id)), [saved.data]);
 
-  async function release(id: number) {
-    lockedListings.current.delete(id);
-    if (!lockedListings.current.size && needsRefresh.current) {
-      needsRefresh.current = false;
-      await Promise.all([
-        client.invalidateQueries({ queryKey: queryKeys.wishlists }),
-        client.invalidateQueries({ queryKey: queryKeys.savedListings }),
-      ]);
+  const synchronizeSession = useCallback(() => {
+    const token = getToken(), changed = activeSession.current !== token;
+    if (changed) {
+      activeSession.current = token;
+      lockedListings.current.clear(); queuedIntents.current.clear(); lastClicks.current.clear();
+      modalPending.current = null; needsRefresh.current = false;
+      setListingId(null); setPending(false);
     }
-  }
+    return { token, changed };
+  }, []);
+  useEffect(() => { if (status !== "authenticated" && !getToken()) synchronizeSession(); }, [status, synchronizeSession]);
 
-  function restoreMemberships(memberships: SavedListing[]) {
+  const recordCooldown = useCallback((reason: unknown) => {
+    if (reason instanceof ApiError && reason.status === 429) queuedIntents.current.clear();
+    recordRateLimit(reason);
+  }, [recordRateLimit]);
+
+  const restoreMemberships = useCallback((memberships: SavedListing[]) => {
     client.setQueryData<SavedListing[]>(queryKeys.savedListings, current => {
       const next = [...(current ?? [])];
       for (const item of memberships) {
@@ -53,16 +63,18 @@ export function WishlistProvider({ children }: { children: ReactNode }) {
       }
       return next;
     });
-  }
+  }, [client]);
 
-  function open(id: number) { setListingId(id); setCreate(false); setName(""); setError(""); }
+  const open = useCallback((id: number) => { setListingId(id); setCreate(false); setName(""); setError(""); }, []);
 
-  async function remove(id: number) {
+  const remove = useCallback(async (id: number, operationToken: string) => {
     await client.cancelQueries({ queryKey: queryKeys.savedListings });
+    if (getToken() !== operationToken) return;
     const memberships = (client.getQueryData<SavedListing[]>(queryKeys.savedListings) ?? []).filter(item => item.listing_id === id);
     if (!memberships.length) { open(id); return; }
     client.setQueryData<SavedListing[]>(queryKeys.savedListings, current => (current ?? []).filter(item => item.listing_id !== id));
     const results = await Promise.allSettled(memberships.map(item => removeWishlist(item.wishlist_id, id)));
+    if (getToken() !== operationToken) return;
     restoreMemberships(memberships.filter((_, index) => results[index]?.status === "rejected"));
     needsRefresh.current = true;
     const removed = memberships.filter((_, index) => results[index]?.status === "fulfilled");
@@ -72,62 +84,105 @@ export function WishlistProvider({ children }: { children: ReactNode }) {
     }
     const failures = results.filter(result => result.status === "rejected");
     const rateLimit = failures.map(result => result.reason).filter((reason): reason is ApiError => reason instanceof ApiError && reason.status === 429).sort((a, b) => b.retryAfterSeconds - a.retryAfterSeconds)[0];
-    if (rateLimit) cooldown.record(rateLimit);
+    if (rateLimit) recordCooldown(rateLimit);
     const failure = failures[0];
-    if (failure?.status === "rejected") { if (!rateLimit) cooldown.record(failure.reason); toast.error(message(rateLimit ?? failure.reason, "Could not remove this saved place.")); }
-  }
+    if (failure?.status === "rejected") { if (!rateLimit) recordCooldown(failure.reason); toast.error(message(rateLimit ?? failure.reason, "Could not remove this saved place.")); }
+  }, [client, open, restoreMemberships, recordCooldown]);
 
-  function toggle(id: number): void {
-    if (cooldown.blocked || lockedListings.current.has(id) || modalPending.current) return;
+  const release = useCallback(async function release(id: number, operationToken: string) {
+    if (lockedListings.current.get(id) !== operationToken) return;
+    lockedListings.current.delete(id);
+    if (getToken() !== operationToken) { queuedIntents.current.delete(id); return; }
+    if (!lockedListings.current.size && needsRefresh.current) {
+      needsRefresh.current = false;
+      await Promise.all([
+        client.invalidateQueries({ queryKey: queryKeys.wishlists }),
+        client.invalidateQueries({ queryKey: queryKeys.savedListings }),
+      ]);
+    }
+    if (getToken() !== operationToken || lockedListings.current.has(id) || modalPending.current) return;
+    const desired = queuedIntents.current.get(id);
+    queuedIntents.current.delete(id);
+    if (desired === undefined || cooldown.blocked) return;
+    const currentlySaved = (client.getQueryData<SavedListing[]>(queryKeys.savedListings) ?? []).some(item => item.listing_id === id);
+    if (!desired) setListingId(current => current === id ? null : current);
+    if (desired === currentlySaved) return;
+    if (desired) { open(id); return; }
+    lockedListings.current.set(id, operationToken);
+    try { await remove(id, operationToken); }
+    catch (reason) { if (getToken() === operationToken) { recordCooldown(reason); toast.error(message(reason, "Could not remove this saved place.")); } }
+    finally { await release(id, operationToken); }
+  }, [client, cooldown.blocked, open, remove, recordCooldown]);
+
+  const toggle = useCallback(function toggle(id: number): void {
     if (status !== "authenticated" && !getToken()) { openAuth(() => toggle(id)); return; }
-    lockedListings.current.add(id);
+    const { token } = synchronizeSession();
+    if (!token || cooldown.blocked || (modalPending.current && !lockedListings.current.has(id))) return;
+    const now = performance.now(), last = lastClicks.current.get(id);
+    if (last !== undefined && now - last < 300) return;
+    lastClicks.current.set(id, now);
+    if (lockedListings.current.has(id)) {
+      const current = queuedIntents.current.get(id) ?? (client.getQueryData<SavedListing[]>(queryKeys.savedListings) ?? []).some(item => item.listing_id === id);
+      queuedIntents.current.set(id, !current);
+      return;
+    }
+    lockedListings.current.set(id, token);
     void (async () => {
       try {
         if (!client.getQueryData<SavedListing[]>(queryKeys.savedListings)) {
           await client.fetchQuery({ queryKey: queryKeys.savedListings, queryFn: ({ signal }) => getSavedListings(signal) });
         }
+        if (getToken() !== token) return;
         if (!client.getQueryData<WishlistSummary[]>(queryKeys.wishlists)) {
           await client.fetchQuery({ queryKey: queryKeys.wishlists, queryFn: ({ signal }) => getWishlists(signal) });
         }
-        await remove(id);
-      } catch (reason) { cooldown.record(reason); toast.error(message(reason, "Could not load your wishlists.")); }
-      finally { await release(id); }
+        if (getToken() !== token) return;
+        await remove(id, token);
+      } catch (reason) { if (getToken() === token) { recordCooldown(reason); toast.error(message(reason, "Could not load your wishlists.")); } }
+      finally { await release(id, token); }
     })();
-  }
+  }, [client, cooldown.blocked, status, openAuth, remove, release, recordCooldown, synchronizeSession]);
 
-  async function save(id: number, place: number, listName: string) {
+  async function save(id: number, place: number, listName: string, operationToken: string) {
     await client.cancelQueries({ queryKey: queryKeys.savedListings });
+    if (getToken() !== operationToken) return;
     const existed = (client.getQueryData<SavedListing[]>(queryKeys.savedListings) ?? []).some(item => item.wishlist_id === id && item.listing_id === place);
     client.setQueryData<SavedListing[]>(queryKeys.savedListings, current => [...(current ?? []).filter(item => !(item.wishlist_id === id && item.listing_id === place)), { wishlist_id: id, listing_id: place }]);
     try {
       await saveWishlist(id, place);
+      if (getToken() !== operationToken) return;
       setListingId(null);
-      toast(`Saved to ${listName}`, { action: { label: "Change", onClick: () => open(place) } });
+      toast(`Saved to ${listName}`, { action: { label: "Change", onClick: () => { if (getToken() === operationToken) open(place); } } });
     } catch (reason) {
-      if (!existed) client.setQueryData<SavedListing[]>(queryKeys.savedListings, current => (current ?? []).filter(item => !(item.wishlist_id === id && item.listing_id === place)));
+      if (!existed && getToken() === operationToken) client.setQueryData<SavedListing[]>(queryKeys.savedListings, current => (current ?? []).filter(item => !(item.wishlist_id === id && item.listing_id === place)));
       throw reason;
-    } finally { needsRefresh.current = true; }
+    } finally { if (getToken() === operationToken) needsRefresh.current = true; }
   }
 
   async function choose(id: number, listName: string) {
+    const { token, changed } = synchronizeSession();
+    if (!token || changed) return;
     if (listingId === null || modalPending.current || cooldown.blocked || lockedListings.current.has(listingId)) return;
     const place = listingId;
-    modalPending.current = true; lockedListings.current.add(place); setPending(true); setError("");
-    try { await save(id, place, listName); }
-    catch (reason) { cooldown.record(reason); setError(message(reason, "Could not save this place.")); toast.error(message(reason, "Could not save this place.")); }
-    finally { await release(place); modalPending.current = false; setPending(false); }
+    modalPending.current = token; lockedListings.current.set(place, token); setPending(true); setError("");
+    try { await save(id, place, listName, token); }
+    catch (reason) { if (getToken() === token) { recordCooldown(reason); setError(message(reason, "Could not save this place.")); toast.error(message(reason, "Could not save this place.")); } }
+    finally { if (modalPending.current === token) modalPending.current = null; await release(place, token); if (getToken() === token) setPending(false); }
   }
 
   async function createAndSave() {
+    const { token, changed } = synchronizeSession();
+    if (!token || changed) return;
     if (listingId === null || !name.trim() || name.length>50 || modalPending.current || cooldown.blocked || lockedListings.current.has(listingId)) return;
     const place = listingId;
-    modalPending.current = true; lockedListings.current.add(place); setPending(true); setError("");
+    modalPending.current = token; lockedListings.current.set(place, token); setPending(true); setError("");
     try {
       const list = await createWishlist({ name: name.trim() });
+      if (getToken() !== token) return;
       needsRefresh.current = true; setCreate(false);
-      await save(list.id, place, list.name);
-    } catch (reason) { cooldown.record(reason); setError(message(reason, "Could not create your wishlist.")); toast.error(message(reason, "Could not create your wishlist.")); }
-    finally { await release(place); modalPending.current = false; setPending(false); }
+      await save(list.id, place, list.name, token);
+    } catch (reason) { if (getToken() === token) { recordCooldown(reason); setError(message(reason, "Could not create your wishlist.")); toast.error(message(reason, "Could not create your wishlist.")); } }
+    finally { if (modalPending.current === token) modalPending.current = null; await release(place, token); if (getToken() === token) setPending(false); }
   }
 
   const disabled = pending || cooldown.blocked;

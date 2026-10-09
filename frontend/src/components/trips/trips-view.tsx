@@ -51,10 +51,19 @@ export function TripsView() {
   const [cancelError, setCancelError] = useState("");
   const prompted = useRef(false);
   const cancellationPending = useRef(false);
-  const highlight = Number(search.get("booking"));
+  const bookingHighlight = Number(search.get("booking"));
+  const [expiredHighlight, setExpiredHighlight] = useState<number | null>(null);
+  const highlight = bookingHighlight === expiredHighlight ? 0 : bookingHighlight;
   const today = toDateString(new Date());
   const query = useQuery({ queryKey: queryKeys.bookings, queryFn: ({ signal }) => getBookings(signal), enabled: status === "authenticated" });
   const detail = query.data?.find(booking => booking.id === detailId);
+  const highlightedTripLoaded = query.isSuccess && Boolean(query.data?.some(booking => booking.id === bookingHighlight));
+
+  useEffect(() => {
+    if (!highlightedTripLoaded || expiredHighlight === bookingHighlight) return;
+    const timer = window.setTimeout(() => setExpiredHighlight(bookingHighlight), 3000);
+    return () => window.clearTimeout(timer);
+  }, [bookingHighlight, expiredHighlight, highlightedTripLoaded]);
 
   useEffect(() => {
     if (status === "anonymous" && !prompted.current) { prompted.current = true; openAuth(); }

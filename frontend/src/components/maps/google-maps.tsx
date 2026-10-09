@@ -92,7 +92,7 @@ function InitialBounds({ listings, bounds, searchKey, onFit }: Pick<ExploreMapPr
       // once its camera settles; later user zoom remains unrestricted.
       fitListener.current = google.maps.event.addListenerOnce(map, "idle", () => {
         fitListener.current = null;
-        if ((map.getZoom() ?? 0) > 15) { onFit(); map.setZoom(15); }
+        if ((map.getZoom() ?? 0) > 15) { onFit(); map.moveCamera({ center: fit.getCenter(), zoom: 15 }); }
       });
       map.fitBounds(fit, 60);
       initialized.current = searchKey;
