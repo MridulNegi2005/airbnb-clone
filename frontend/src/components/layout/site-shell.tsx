@@ -12,6 +12,7 @@ import { formatDateRange, plural } from "@/lib/format";
 import { Modal } from "@/components/ui/modal";
 import { AppImage } from "@/components/ui/app-image";
 import styles from "./site-shell.module.css";
+import { Footer } from "./footer";
 
 const SearchBar=dynamic(()=>import("@/components/search/search-bar").then(module=>module.SearchBar),{loading:()=> <div className="page-shell" role="status" style={{minHeight:72,paddingBlock:24}}>Loading search…</div>});
 
@@ -93,10 +94,6 @@ function Header({hosting=false}:{hosting?:boolean}) {
   </div>{homepage?<div className={styles.homeSearch} aria-hidden={collapsed} inert={collapsed}><SearchBar homepage startOpen={scrolled&&searchOpen} onClose={closeSearch} onActiveChange={homeSearchActive}/></div>:!hosting&&searchOpen&&<div className="expanded-search"><SearchBar onClose={closeSearch}/></div>}</header>
   {searchOpen&&!hosting&&(!homepage||scrolled)&&<div className={`search-dimmer ${homepage?styles.homeDimmer:""}`} onClick={closeSearch} aria-hidden="true"/>}
   <Modal open={regionOpen} onClose={closeRegion} title="Language and region"><h3>Choose a language and region</h3><p className="outline-button" style={{marginTop:24}}>English (India)</p><p className="muted" style={{marginTop:24}}>Currency: ₹ INR. Other languages and currencies are coming soon.</p></Modal></>;
-}
-function Footer(){
-  const groups=[{title:"Support",links:["Help Centre","AirCover","Anti-discrimination","Disability support","Cancellation options"]},{title:"Hosting",links:["Airbnb your home","AirCover for Hosts","Hosting resources","Community forum","Hosting responsibly"]},{title:"Airbnb",links:["Newsroom","New features","Careers","Investors","Airbnb.org emergency stays"]}];
-  return <footer className="site-footer"><div className="page-shell"><h2 className="sr-only">Site footer</h2><div className="footer-columns">{groups.map(group=><div key={group.title}><h3>{group.title}</h3>{group.links.map(label=><Link key={label} href={label==="Airbnb your home"?"/hosting/listings/new":"/coming-soon"}>{label}</Link>)}</div>)}</div><div className="footer-bottom"><span>© {new Date().getFullYear()} Airbnb clone · <Link href="/privacy">Privacy</Link> · <Link href="/terms">Terms</Link> · <Link href="/">Sitemap</Link></span><span>English (India) &nbsp; ₹ INR</span></div><p className="footer-disclaimer">Demo project. Not affiliated with Airbnb.</p></div></footer>;
 }
 function MobileTabs(){
   const path=usePathname();const {user,openAuth}=useAuth();const unread=useUnreadCount();

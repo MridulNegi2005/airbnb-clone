@@ -11,6 +11,7 @@ const ExploreMap=dynamic(()=>import("@/components/maps").then(module=>module.Exp
 import type { ListingCard as Listing, MapBounds } from "@/types/api";
 import { CategoryBar } from "./category-bar";
 import { HomepageSkeleton, ListingSkeleton } from "./listing-skeleton";
+import { HomeRowSeeAll } from "./home-row-see-all";
 import styles from "./explore.module.css";
 
 const FiltersModal=dynamic(()=>import("@/components/search/filters-modal").then(module=>module.FiltersModal));
@@ -100,6 +101,6 @@ function HomeListingRow({ title, items, priority, onBrowse }: { title: string; i
   }
   return <section className={styles.homeRow} aria-label={title}>
     <div className={styles.rowHeading}><h2><button type="button" onClick={onBrowse}>{title}<span><ArrowRight size={14}/></span></button></h2><div className={styles.rowControls}><button type="button" aria-label={`Previous homes: ${title}`} disabled={position.start} onClick={()=>move(-1)}><ChevronLeft size={16}/></button><button type="button" aria-label={`Next homes: ${title}`} disabled={position.end} onClick={()=>move(1)}><ChevronRight size={16}/></button></div></div>
-    <div ref={track} className={styles.homeTrack} onScroll={measure}>{visibleItems.map((listing,index)=><ListingCard key={listing.id} listing={listing} compact priority={priority&&index<2} imageSizes="(max-width:549px) 42vw, (max-width:743px) 29vw, (max-width:949px) calc((100vw - 148px) / 4), (max-width:1127px) calc((100vw - 180px) / 5), (max-width:1439px) calc((89vw - 60px) / 6), (min-width:1900px) calc((89vw - 96px) / 9), calc((89vw - 72px) / 7)"/>)}<button type="button" className={styles.seeAll} onClick={onBrowse} aria-label={`See all: ${title}`}><span className={styles.seeAllImage}><span><ArrowRight size={22}/></span></span><strong>See all</strong></button></div>
+    <div ref={track} className={styles.homeTrack} onScroll={measure}>{visibleItems.map((listing,index)=><ListingCard key={listing.id} listing={listing} compact priority={priority&&index<2} imageSizes="(max-width:549px) 42vw, (max-width:743px) 29vw, (max-width:949px) calc((100vw - 116px) / 4), (max-width:1127px) calc((100vw - 128px) / 5), (max-width:1439px) calc((100vw - 171px) / 6), (min-width:1900px) calc((100vw - 207px) / 9), calc((100vw - 183px) / 7)"/>)}<HomeRowSeeAll items={visibleItems} title={title} onBrowse={onBrowse}/></div>
   </section>;
 }

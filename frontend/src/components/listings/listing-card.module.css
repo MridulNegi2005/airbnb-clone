@@ -1,14 +1,21 @@
-.compact :global(.listing-photo){border-radius:20px;aspect-ratio:20/19}
+.compact{position:relative;border-radius:20px;align-self:start}
+.compact:before{content:"";position:absolute;inset:0 0 -4px;border-radius:20px;pointer-events:none;box-shadow:0 0 0 2px transparent,0 0 0 4px transparent;transition:box-shadow 200ms cubic-bezier(.2,0,0,1)}
+.compact :global(.listing-photo){border-radius:20px;aspect-ratio:20/19;background:#ddd}
 .compact :global(.listing-carousel){overflow:hidden;scroll-snap-type:none}
-.compact :global(.listing-copy){padding-top:7px;font-size:13px;line-height:17px}
-.compact :global(.listing-title-row h3){font-size:13px;font-weight:500;line-height:17px}
-.compact :global(.listing-price){display:flex;align-items:center;gap:3px;font-size:12px;color:var(--text-secondary);padding-top:0;margin-top:1px;white-space:nowrap}
-.compact :global(.guest-favourite){top:12px;left:12px;font-size:11px;line-height:16px;padding:4px 9px;font-weight:600;box-shadow:0 2px 6px rgb(0 0 0/.12)}
-.compact :global(.card-heart){right:4px;top:5px;width:38px;height:38px;transition:scale 120ms ease}
-.compact :global(.card-heart svg){width:23px;height:23px}
-@media(prefers-reduced-motion:reduce){.compact :global(.card-heart){transition:none}}
+.compact :global(.listing-copy){padding:8px 4px 0;font-size:13px;line-height:16px}
+.compact :global(.listing-title-row h3){font-size:13px;font-weight:500;line-height:16px;white-space:normal;display:-webkit-box;-webkit-line-clamp:2;-webkit-box-orient:vertical}
+.compact :global(.listing-price){display:flex;align-items:center;gap:2px;font-size:12px;line-height:16px;color:#6c6c6c;padding-top:0;margin-top:2px;white-space:nowrap}
+.compact :global(.listing-price svg){width:8px;height:8px;margin-left:2px}
+.compact :global(.guest-favourite){top:12px;left:12px;min-width:104px;display:flex;justify-content:center;font-size:11px;line-height:13px;padding:5.5px 9.5px;border:1px solid rgb(255 255 255/.5);border-radius:14px;background:rgb(255 255 255/.8);font-weight:600;box-shadow:0 0 0 1px rgb(0 0 0/.02),0 2px 6px rgb(0 0 0/.04),0 4px 8px rgb(0 0 0/.1)}
+.compact :global(.card-heart){right:8px;top:8px;width:32px;height:32px;padding-top:2px;border-radius:50%;transition:transform 250ms cubic-bezier(.2,0,0,1)}
+.compact :global(.card-heart svg){width:24px;height:24px;stroke-width:1.5}
+.compact :global(.card-heart:focus-visible),.compact:has(:global(.listing-photo-link:focus-visible)):before,.compact:has(:global(.listing-copy:focus-visible)):before{outline:0;box-shadow:0 0 0 2px rgb(255 255 255/.8),0 0 0 4px #222}
+.compact :global(.listing-photo-link:focus-visible),.compact :global(.listing-copy:focus-visible){outline:0}
+.priceSeparator{color:#c1c1c1;font-weight:700}
 
-.photoDots span{transition:scale 180ms ease,background-color 180ms ease}.compact :global(.card-heart:hover){scale:1.08}.compact :global(.card-heart:active){scale:.88}
-@media(prefers-reduced-motion:reduce){.photoDots span{transition:none}.compact :global(.card-heart:hover),.compact :global(.card-heart:active){scale:1}}
+.photoDots span{transition:scale 180ms ease,background-color 180ms ease}
+.compact :global(.card-heart:hover){transform:scale(1.08)}
+.compact :global(.card-heart:active){transform:scale(.92);scale:1}
+@media(prefers-reduced-motion:reduce){.photoDots span,.compact:before,.compact :global(.card-heart){transition:none}.compact :global(.card-heart:hover),.compact :global(.card-heart:active){transform:none}}
 
 .full :global(.listing-photo){aspect-ratio:4/3;border-radius:16px}.full :global(.listing-title-row)>span{gap:4px}.full :global(.listing-title-row)>span>span{display:inline}
