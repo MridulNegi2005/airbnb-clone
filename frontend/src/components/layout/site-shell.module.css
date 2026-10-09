@@ -2,14 +2,14 @@
 .homeHeader{--header-spring:linear(0 0%,0.18557241650572898 10%,0.46530560393651493 20%,0.6823338821577483 30%,0.8223254801509006 40%,0.9049744175651648 50%,0.951288850000914 60%,0.9763638545339052 70%,0.9896118636450829 80%,0.9964846505475399 90%,1 100%);background:transparent;border-bottom:0}
 .detailHeader :global(.header-main){height:96px;padding-inline:48px;max-width:none;position:relative}
 .detailHeader :global(.compact-search){position:absolute;left:50%;transform:translateX(-50%);width:374px;justify-content:space-between;font-weight:500}
-.detailHeader :global(.brand-logo){min-width:0;font-size:24px;font-weight:700;gap:3px;letter-spacing:-1px}
+.detailHeader :global(.brand-logo){min-width:0;font-size:24px;font-weight:700;gap:0;letter-spacing:-1px}
 .detailHeader :global(.header-actions){gap:12px}
 .detailHeader :global(.user-menu-button){width:40px;height:40px;justify-content:center;padding:0;border:0;background:var(--surface)}
 .wishlistDetailHeader :global(.header-main){padding-inline:24px}
 @media(max-width:743px){.detailHeader :global(.header-main){height:72px;padding-inline:24px}.detailHeader :global(.compact-search){position:static;transform:none;width:auto}.detailHeader :global(.brand-logo){display:none}}
 .homeHeader :global(.header-main){height:80px;padding-inline:48px;max-width:none;position:relative}
-.homeHeader :global(.brand-logo){min-width:0;font-size:24px;font-weight:700;gap:3px;letter-spacing:-1px}
-.homeHeader :global(.brand-logo img){width:30px;height:32px}
+.homeHeader :global(.brand-logo){min-width:0;font-size:24px;font-weight:700;gap:0;letter-spacing:-1px}
+.homeHeader :global(.brand-logo > img){width:30px;height:32px}
 .homeTabs{position:absolute;left:50%;transform:translateX(-50%);display:flex;align-items:center;justify-content:space-between;gap:0;width:500px;height:76px}
 .homeTabs button{display:flex;gap:8px;align-items:center;white-space:nowrap;height:62px;font-size:14px;font-weight:500;color:var(--text-secondary);position:relative}
 .homeTabs button[aria-pressed=true]{color:var(--text)}
