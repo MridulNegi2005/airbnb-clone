@@ -288,19 +288,22 @@ def write_checks(base_url: str, state: dict[str, Any]) -> None:
         host.request("DELETE", path, expect=204)
         guest.request("GET", path, expect=404)
 
-    for check in (
-        sign_up,
-        upload,
-        create_listing,
-        pricing_and_stay_limits,
-        host_calendar,
-        wishlist,
-        book_and_cancel,
-        messaging,
-        profiles,
-        archive_listing,
-    ):
-        _run(check)
+    try:
+        for check in (
+            sign_up,
+            upload,
+            create_listing,
+            pricing_and_stay_limits,
+            host_calendar,
+            wishlist,
+            book_and_cancel,
+            messaging,
+            profiles,
+        ):
+            _run(check)
+    finally:
+        if listing:
+            _run(archive_listing)
 
 
 def _run(check: Callable[[], None]) -> None:

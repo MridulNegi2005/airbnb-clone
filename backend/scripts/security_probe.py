@@ -228,8 +228,10 @@ def probe(base_url: str, check_rate_limit: bool) -> None:
         )
 
     def clean_up() -> None:
-        owner.request("DELETE", f"/api/wishlists/{created['wishlist']['id']}", expect=204)
-        owner.request("DELETE", f"/api/listings/{created['listing']['id']}", expect=204)
+        if "wishlist" in created:
+            owner.request("DELETE", f"/api/wishlists/{created['wishlist']['id']}", expect=204)
+        if "listing" in created:
+            owner.request("DELETE", f"/api/listings/{created['listing']['id']}", expect=204)
 
     def login_is_rate_limited() -> None:
         attempt = json.dumps({"email": "nobody@example.com", "password": "wrong-password"})
@@ -255,12 +257,14 @@ def probe(base_url: str, check_rate_limit: bool) -> None:
         no_private_data_in_public_responses,
         errors_do_not_leak_internals,
         booking_dates_cannot_be_abused,
-        clean_up,
     ]
+    try:
+        for check in checks:
+            _run(check)
+    finally:
+        _run(clean_up)
     if check_rate_limit:
-        checks.append(login_is_rate_limited)
-    for check in checks:
-        _run(check)
+        _run(login_is_rate_limited)
 
 
 def main() -> None:
