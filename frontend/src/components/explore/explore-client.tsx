@@ -4,10 +4,10 @@ import { useEffect, useRef, useState, useSyncExternalStore } from "react";
 import { ArrowRight, ChevronLeft, ChevronRight, List, Map, Tag } from "lucide-react";
 import dynamic from "next/dynamic";
 import { useListings, type InitialListings } from "@/hooks/use-listings";
-import { useSearch } from "@/hooks/use-search";
+import { usePageSearch } from "@/hooks/use-search";
 import { useApiCooldown } from "@/hooks/use-api-cooldown";
 import { ListingCard } from "@/components/listings/listing-card";
-const ExploreMap=dynamic(()=>import("@/components/maps").then(module=>module.ExploreMap),{loading:()=> <div role="status" style={{height:"100%",minHeight:400,background:"var(--surface)",display:"grid",placeContent:"center"}}>Loading map...</div>});
+const ExploreMap=dynamic(()=>import("@/components/maps").then(module=>module.ExploreMap),{ssr:false,loading:()=> <div role="status" style={{height:"100%",minHeight:400,background:"var(--surface)",display:"grid",placeContent:"center"}}>Loading map...</div>});
 import type { ListingCard as Listing, MapBounds } from "@/types/api";
 import { CategoryBar } from "./category-bar";
 import { HomepageSkeleton, ListingSkeleton } from "./listing-skeleton";
@@ -15,13 +15,13 @@ import { HomeRowSeeAll } from "./home-row-see-all";
 import styles from "./explore.module.css";
 import { useAfterPageLoad } from "@/hooks/use-after-page-load";
 
-const FiltersModal=dynamic(()=>import("@/components/search/filters-modal").then(module=>module.FiltersModal));
+const FiltersModal=dynamic(()=>import("@/components/search/filters-modal").then(module=>module.FiltersModal),{ssr:false});
 
 const subscribeDesktop=(listener:()=>void)=>{const media=window.matchMedia("(min-width: 1128px)");media.addEventListener("change",listener);return()=>media.removeEventListener("change",listener);};
 const desktopSnapshot=()=>window.matchMedia("(min-width: 1128px)").matches;
 
 export function ExploreClient({ initialData }: { initialData?: InitialListings }) {
-  const { params, query, update } = useSearch();
+  const { params, query, update } = usePageSearch();
   const homepage = !params.size;
   const rawPage=Number(params.get("page"));
   const currentPage=Number.isInteger(rawPage)&&rawPage>0?rawPage:1;

@@ -5,7 +5,7 @@ import { keepPreviousData, useQuery } from "@tanstack/react-query";
 import { AirVent, Building2, ChevronDown, CookingPot, Dumbbell, Home, Hotel, House, KeyRound, ParkingCircle, Minus, Plus, Tv, WashingMachine, Waves, Wifi } from "lucide-react";
 import { getAmenities, getCategories, getListings } from "@/lib/api";
 import { toListingQuery } from "@/lib/search-params";
-import { useSearch } from "@/hooks/use-search";
+import { usePageSearch } from "@/hooks/use-search";
 import { Modal } from "@/components/ui/modal";
 import { AppImage } from "@/components/ui/app-image";
 import { PriceRange } from "./price-range";
@@ -23,7 +23,7 @@ export function FiltersModal({ open, onClose, prices=[] }: { open: boolean; onCl
   return <FiltersForm open={open} onClose={onClose} prices={prices}/>;
 }
 function FiltersForm({ open,onClose,prices }: { open:boolean;onClose: () => void;prices:number[] }) {
-  const { params, update } = useSearch();
+  const { params, update } = usePageSearch();
   const [draft, setDraft] = useState<Draft>(() => Object.fromEntries(Object.keys(empty).map((key) => [key, params.get(key) ?? ""])) as Draft);
   const [debounced, setDebounced] = useState(draft);
   const [showAll, setShowAll] = useState(false);

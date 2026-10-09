@@ -4,11 +4,11 @@ import { useEffect, useRef, useState } from "react";
 import { useQuery } from "@tanstack/react-query";
 import { ChevronLeft, ChevronRight, SlidersHorizontal } from "lucide-react";
 import { getAmenities } from "@/lib/api";
-import { useSearch } from "@/hooks/use-search";
+import { usePageSearch } from "@/hooks/use-search";
 import styles from "./explore.module.css";
 
 export function CategoryBar({onFilters}:{onFilters:()=>void}) {
-  const {params,update}=useSearch();
+  const {params,update}=usePageSearch();
   const amenities=useQuery({queryKey:["amenities"],queryFn:({signal})=>getAmenities(signal)});
   const container=useRef<HTMLDivElement>(null);
   const [overflow,setOverflow]=useState({left:false,right:false});
