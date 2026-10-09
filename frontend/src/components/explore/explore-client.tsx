@@ -3,11 +3,11 @@
 import { useEffect, useRef, useState, useSyncExternalStore } from "react";
 import { ArrowRight, ChevronLeft, ChevronRight, List, Map } from "lucide-react";
 import dynamic from "next/dynamic";
-import { useListings } from "@/hooks/use-listings";
+import { useListings, type InitialListings } from "@/hooks/use-listings";
 import { useSearch } from "@/hooks/use-search";
 import { ListingCard } from "@/components/listings/listing-card";
 const ExploreMap=dynamic(()=>import("@/components/maps").then(module=>module.ExploreMap),{loading:()=> <div role="status" style={{height:"100%",minHeight:400,background:"var(--surface)",display:"grid",placeContent:"center"}}>Loading map…</div>});
-import type { ListingCard as Listing, MapBounds, Page } from "@/types/api";
+import type { ListingCard as Listing, MapBounds } from "@/types/api";
 import { CategoryBar } from "./category-bar";
 import { HomepageSkeleton, ListingSkeleton } from "./listing-skeleton";
 import styles from "./explore.module.css";
@@ -17,12 +17,12 @@ const FiltersModal=dynamic(()=>import("@/components/search/filters-modal").then(
 const subscribeDesktop=(listener:()=>void)=>{const media=window.matchMedia("(min-width: 1128px)");media.addEventListener("change",listener);return()=>media.removeEventListener("change",listener);};
 const desktopSnapshot=()=>window.matchMedia("(min-width: 1128px)").matches;
 
-export function ExploreClient({ initialData }: { initialData?: Page<Listing> }) {
+export function ExploreClient({ initialData }: { initialData?: InitialListings }) {
   const { params, query, update } = useSearch();
   const homepage = !params.size;
   const desktopMap=useSyncExternalStore(subscribeDesktop,desktopSnapshot,()=>false);
   const isMap=params.get("view")==="map"||(desktopMap&&params.get("view")!=="list");
-  const listings = useListings(homepage || isMap ? { ...query, page_size: 50 } : query, initialData);
+  const listings = useListings(homepage || params.get("view") === "map" ? { ...query, page_size: 50 } : query, initialData);
   const { hasNextPage, isFetchingNextPage, fetchNextPage } = listings;
   const [filtersOpen, setFiltersOpen] = useState(false);
   const [filtersMounted,setFiltersMounted]=useState(false);

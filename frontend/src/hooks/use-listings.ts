@@ -1,10 +1,13 @@
 "use client";
 
-import { useInfiniteQuery } from "@tanstack/react-query";
+import { hashKey, useInfiniteQuery } from "@tanstack/react-query";
 import { getListings, queryKeys } from "@/lib/api";
 import type { ListingCard, ListingQuery, Page } from "@/types/api";
 
-export function useListings(query: ListingQuery, initialData?: Page<ListingCard>) {
+export type InitialListings = { query: ListingQuery; data: Page<ListingCard> };
+
+export function useListings(query: ListingQuery, initial?: InitialListings) {
+  const initialData = initial && hashKey(queryKeys.listings(initial.query)) === hashKey(queryKeys.listings(query)) ? initial.data : undefined;
   return useInfiniteQuery({
     queryKey: queryKeys.listings(query),
     queryFn: ({ pageParam, signal }) => getListings({ ...query, page: pageParam, page_size: query.page_size ?? 20 }, signal),

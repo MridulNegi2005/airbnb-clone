@@ -14,5 +14,5 @@ export default async function ExplorePage({ searchParams }: { searchParams: Prom
   const homepage = !params.size;
   const query = { ...toListingQuery(params), ...(homepage || params.get("view") === "map" ? { page_size: 50 } : {}) };
   const initialData = await getListings(query, AbortSignal.timeout(4000)).catch(() => undefined);
-  return <Suspense fallback={<div className="page-shell py-6"><ListingSkeleton /></div>}><ExploreClient initialData={initialData} /></Suspense>;
+  return <Suspense fallback={<div className="page-shell py-6"><ListingSkeleton /></div>}><ExploreClient initialData={initialData ? { query, data: initialData } : undefined} /></Suspense>;
 }
