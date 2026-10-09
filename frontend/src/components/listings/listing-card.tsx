@@ -38,7 +38,7 @@ export function ListingCard({listing,priority=false,searchParams="",imageSizes=g
       <div className="listing-title-row"><h3>{compact?compactTitle:`${listing.neighbourhood}, ${listing.city}`}</h3>{!compact&&<span><Star size={12} fill="currentColor"/>{formatRating(listing.rating)}{listing.review_count>0&&<span>({listing.review_count})</span>}</span>}</div>
       {!compact&&<p className="muted listing-subtitle">{listing.title}</p>}
       {checkIn&&checkOut&&<p className="muted">{formatDateRange(checkIn,checkOut)}</p>}
-      <p className="listing-price">{compact?<>{formatPrice(listing.price_per_night)} for 1 night · <Star size={9} fill="currentColor"/>{formatRating(listing.rating)}</>:<><strong>{formatPrice(listing.price_per_night)}</strong> night</>}</p>
+      <p className="listing-price">{compact?<>{formatPrice(listing.price_per_night)} for 1 night<span className={styles.priceSeparator} aria-hidden="true">·</span><Star size={8} fill="currentColor" aria-hidden="true"/>{listing.rating===null?"New":listing.rating.toLocaleString("en-IN",{minimumFractionDigits:1,maximumFractionDigits:2})}</>:<><strong>{formatPrice(listing.price_per_night)}</strong> night</>}</p>
       {checkIn&&checkOut&&<p className="listing-total">{formatPrice(nightlySubtotal(listing.price_per_night,checkIn,checkOut))} before fees</p>}
     </Link>
   </article>;
