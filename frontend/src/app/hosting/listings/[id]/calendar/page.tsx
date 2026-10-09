@@ -6,5 +6,5 @@ export default async function HostCalendarPage({ params }: { params: Promise<{ i
   const { id } = await params;
   const listingId = Number(id);
   if (!Number.isInteger(listingId) || listingId < 1) notFound();
-  return <HostCalendar listingId={listingId} />;
+  return <main id="main-content"><HostCalendar listingId={listingId} /></main>;
 }
