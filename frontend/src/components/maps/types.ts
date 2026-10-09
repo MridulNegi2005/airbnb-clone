@@ -8,6 +8,7 @@ export type ExploreMapProps = {
   hoveredListingId?: number | null;
   onHoverListing?: (id: number | null) => void;
   searchParams?: string;
+  loading?: boolean;
 };
 export type HostAddressValue = {
   address: string; neighbourhood: string; city: string; country: string;
