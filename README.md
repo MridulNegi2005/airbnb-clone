@@ -6,7 +6,33 @@ A full-stack clone of the Airbnb web application for stays in Bengaluru and the 
 - **Frontend:** Next.js 16, React 19 and TypeScript, deployed on Cloudflare Workers (`frontend/`)
 - **Cloud services:** Google Maps Platform, Google Sign-In and Google Cloud Storage, all inside their free tiers
 
-**Live demo:** https://airbnb.mridulnegi.dev (API: https://airbnb-api.mridulnegi.dev, documentation at `/docs`)
+## For reviewers
+
+| Item | Value |
+| --- | --- |
+| Live site | https://airbnb.mridulnegi.dev |
+| API | https://airbnb-api.mridulnegi.dev |
+| API documentation | https://airbnb-api.mridulnegi.dev/docs |
+| Guest login | `rohan@example.com` / `Demo@airbnb` |
+| Host login | `kavya@example.com` / `Demo@airbnb` |
+
+- Use the guest account to search, book, cancel, save to wishlists and message hosts.
+- Use the host account to manage listings, reservations and the availability calendar.
+- You can also create a new account or use Google Sign-In.
+- Some browsers can show a "dangerous site" warning. The warning occurs because the site copies the Airbnb design exactly, on a domain that is not airbnb.com. The site is a demo. It does not take payments. To continue, select **Details** and then **Visit this site**.
+
+## Hosting and cost
+
+The project runs end to end at no cost. Each part uses a free plan or a free student offer:
+
+| Part | Service | Cost |
+| --- | --- | --- |
+| Domain `mridulnegi.dev` | GitHub Student Developer Pack (free domain for one year) | Free |
+| Email `contact@mridulnegi.dev` | Cloudflare Email Routing forwards the address to a personal inbox | Free |
+| DNS, HTTPS proxy and frontend hosting | Cloudflare free plan and Cloudflare Workers. Each push to GitHub deploys the frontend automatically | Free |
+| Backend server | Oracle Cloud Always Free virtual machine (4 CPU cores, 12 GB RAM) that runs the API in Docker behind Caddy | Free |
+| Maps, place search, Google Sign-In and photo storage | Google Cloud free usage tier, with hard daily quota caps and a budget alert, so the project cannot create a charge | Free |
+| Source code | GitHub | Free |
 
 ## Features
 
@@ -285,7 +311,4 @@ The container runs as a user without privileges, with a read-only file system an
 
 ### Demo accounts
 
-Use these two accounts to try the live demo. The password for both accounts is `Demo@airbnb`. The demo seed sets this password from `SEED_USER_PASSWORD`. The other seeded accounts get a random password that nobody knows.
-
-- Guest: `rohan@example.com`
-- Host: `kavya@example.com`
+The demo logins are in [For reviewers](#for-reviewers) at the top of this file.
