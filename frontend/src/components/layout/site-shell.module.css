@@ -99,6 +99,7 @@
 .homeCompact>span:not(.compactIcon){opacity:0;transition:opacity 50ms linear}
 .homeCollapsed .homeCompact>span:not(.compactIcon){opacity:1;transition:opacity 75ms linear 175ms}
 .homeCollapsed .homeCompact>span.compactIcon{opacity:1;transform:none;transition:transform 450ms var(--header-spring),opacity 0s}
+.homeSearch :global([class*=searchButton]){transition:opacity 0s linear 450ms}
 .homeCollapsed .homeSearch :global([class*=searchButton]){opacity:0;transition:none}
 .homeTabs button:nth-child(1){gap:9px}.homeTabs button:nth-child(2){gap:16px}
 .homeTabs button:nth-child(4){gap:12px}
