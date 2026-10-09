@@ -1,5 +1,5 @@
 "use client";
-import { useState, type FormEvent } from "react";
+import { useEffect, useRef, useState, type FormEvent } from "react";
 import { useRouter } from "next/navigation";
 import { useQueryClient } from "@tanstack/react-query";
 import { createConversation, queryKeys } from "@/lib/api";
@@ -13,24 +13,29 @@ export function ComposeMessageModal({ open, onClose, listingId, hostName }: { op
   const [body, setBody] = useState("");
   const [error, setError] = useState("");
   const [pending, setPending] = useState(false);
+  const sending = useRef(false), visible = useRef(open);
+  useEffect(() => { visible.current = open; }, [open]);
+  useEffect(() => () => { visible.current = false; }, []);
   const { status, openAuth } = useAuth();
   const router = useRouter();
   const client = useQueryClient();
   const cooldown = useSendCooldown();
   async function send() {
-    if (!body.trim() || pending || cooldown.blocked) return;
+    if (!visible.current || !body.trim() || body.trim().length > 2000 || pending || sending.current || cooldown.blocked) return;
+    sending.current = true;
     setPending(true); setError("");
     try {
       const conversation = await createConversation({ listing_id: listingId, body: body.trim() });
       await client.invalidateQueries({ queryKey: queryKeys.conversations });
-      setBody(""); onClose(); router.push(`/messages/${conversation.id}`);
+      if (visible.current) { setBody(""); onClose(); router.push(`/messages/${conversation.id}`); }
     } catch (reason) { cooldown.record(reason); setError(reason instanceof Error ? reason.message : "Your message could not be sent. Please try again."); }
-    finally { setPending(false); }
+    finally { sending.current = false; setPending(false); }
   }
   function submit(event: FormEvent) {
     event.preventDefault();
+    if (!visible.current || pending || sending.current || cooldown.blocked) return;
     if (status !== "authenticated") { openAuth(() => { void send(); }); return; }
     void send();
   }
-  return <Modal open={open} onClose={() => { if (!pending) onClose(); }} title={`Message ${hostName.split(" ")[0] || "your host"}`}><form onSubmit={submit} className={styles.composeModal}><p>Ask a question about the place or share your trip plans.</p><label htmlFor="host-message">Your message</label><textarea id="host-message" autoFocus required maxLength={2000} rows={6} value={body} onChange={event => setBody(event.target.value)} placeholder="Hi! I’d love to know more about your place."/><span className={styles.counter}>{body.length}/2000</span>{error && <p role="alert" className="error-text">{error}</p>}<GradientButton disabled={pending || !body.trim() || cooldown.blocked} type="submit">{pending ? "Sending…" : "Send message"}</GradientButton></form></Modal>;
+  return <Modal open={open} onClose={() => { if (!pending && !sending.current) { visible.current = false; onClose(); } }} title={`Message ${hostName.split(" ")[0] || "your host"}`}><form onSubmit={submit} className={styles.composeModal}><p>Ask a question about the place or share your trip plans.</p><label htmlFor="host-message">Your message</label><textarea id="host-message" autoFocus disabled={pending} required maxLength={2000} rows={6} value={body} onChange={event => setBody(event.target.value)} placeholder="Hi! I’d love to know more about your place."/><span className={styles.counter}>{body.length}/2000</span>{error && <p role="alert" className="error-text">{error}</p>}<GradientButton disabled={pending || !body.trim() || cooldown.blocked} type="submit">{pending ? "Sending…" : "Send message"}</GradientButton></form></Modal>;
 }

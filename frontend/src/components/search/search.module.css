@@ -21,5 +21,12 @@
 @media(prefers-reduced-motion:reduce){.amenityPill{transition:none}}
 
 @media(max-width:743px){.homepage .bar{height:56px;min-height:56px}.homepage .segment,.homepage .segmentGroup>.segment{height:54px;min-height:54px;padding-top:8px;padding-bottom:8px}.homepage .label{line-height:14px}.homepage .value,.homepage .input{line-height:16px}}
+
+@media(min-width:744px){.panel{max-height:calc(100dvh - 190px);overflow:auto}.wherePanel{max-height:min(480px,calc(100dvh - 190px))}.homepage .panel{max-height:calc(100dvh - 235px)}.homepage .wherePanel{max-height:min(480px,calc(100dvh - 235px))}}
+
+.mobileOverlay{display:none}
+@media(max-width:743px){.mobileOverlay{display:block;position:fixed;inset:0;z-index:var(--layer-modal,100)}.mobileSheet[data-state="closing"]{animation:mobile-search-out 200ms cubic-bezier(.2,0,0,1) both}}
+@keyframes mobile-search-out{from{opacity:1;transform:translateY(0)}to{opacity:.8;transform:translateY(32px)}}
+@media(prefers-reduced-motion:reduce){.mobileSheet[data-state="closing"]{animation:none}}
 @media(max-width:360px){.mobileTypes{left:24px;gap:16px}.mobileTypes button:last-child{margin-right:0}.mobileExpanded :global(.rdp-root){--rdp-day-width:34px;--rdp-day-height:40px;--rdp-day_button-width:32px;--rdp-day_button-height:38px}.mobileSheet .mobileClose{right:12px}}
 .mobileEntry{display:none}@media(max-width:743px){.desktopSearch{display:none}.mobileEntry{display:flex;align-items:center;justify-content:center;gap:8px;width:100%;height:56px;border:1px solid var(--line);border-radius:999px;background:var(--bg);box-shadow:0 3px 12px rgb(0 0 0/.12);font-size:14px;font-weight:500}}

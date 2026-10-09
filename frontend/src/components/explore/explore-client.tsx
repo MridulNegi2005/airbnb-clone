@@ -60,7 +60,7 @@ export function ExploreClient({ initialData }: { initialData?: Page<Listing> }) 
       {!isMap&&!params.get("view")&&<aside className={`${styles.mapPane} ${styles.mapPlaceholder}`} aria-label="Map of available stays"><div role="status">Loading map…</div></aside>}
       {isMap && <aside className={styles.mapPane} aria-label="Map of available stays"><ExploreMap listings={all} bounds={bounds} onBoundsChange={searchBounds} hoveredListingId={hoveredId} onHoverListing={setHoveredId} searchParams={params.toString()} /></aside>}
     </section>
-    {all.length > 0 && <button className={styles.mapToggle} onClick={() => update({ view: isMap ? "list" : "map" })}>{isMap ? "Show list" : "Show map"}{isMap ? <List size={16} /> : <Map size={16} />}</button>}
+    {(all.length > 0 || isMap) && <button className={styles.mapToggle} onClick={() => update({ view: isMap ? "list" : "map" })}>{isMap ? "Show list" : "Show map"}{isMap ? <List size={16} /> : <Map size={16} />}</button>}
     {filtersMounted&&<FiltersModal open={filtersOpen} onClose={() => setFiltersOpen(false)} prices={all.map(listing=>listing.price_per_night)} />}
   </>;
 }

@@ -54,3 +54,4 @@
 @media(max-width:743px){.public-profile-shell .site-header,.public-profile-shell .site-footer,.public-profile-shell .mobile-tab-bar{display:none}}
 @media(max-width:743px){.modal-footer{padding-bottom:calc(16px + env(safe-area-inset-bottom))}}
 @media(max-width:743px){.mobile-tab-bar{transition:transform 200ms ease-out}.mobile-tab-bar[data-hidden=true]{transform:translateY(calc(100% + 1px));pointer-events:none}}
+.compact-search{min-width:0;max-width:100%;flex-shrink:1}.compact-search>span:not(.search-circle){min-width:0;overflow:hidden;text-overflow:ellipsis}.compact-search .search-circle{flex-shrink:0}

@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useId, useRef, useState, useSyncExternalStore, type KeyboardEvent as ReactKeyboardEvent, type ChangeEvent } from "react";
+import { useCallback, useEffect, useId, useRef, useState, useSyncExternalStore, type KeyboardEvent as ReactKeyboardEvent, type ChangeEvent } from "react";
 import dynamic from "next/dynamic";
 import { createPortal } from "react-dom";
 import { toast } from "sonner";
@@ -31,6 +31,8 @@ const destinations = [
 ];
 const subscribeMobile=(listener:()=>void)=>{const media=window.matchMedia("(max-width: 743px)");media.addEventListener("change",listener);return()=>media.removeEventListener("change",listener);};
 const mobileSnapshot=()=>window.matchMedia("(max-width: 743px)").matches;
+const subscribeReducedMotion=(listener:()=>void)=>{const media=window.matchMedia("(prefers-reduced-motion: reduce)");media.addEventListener("change",listener);return()=>media.removeEventListener("change",listener);};
+const reducedMotionSnapshot=()=>window.matchMedia("(prefers-reduced-motion: reduce)").matches;
 export function SearchBar({ onClose, homepage=false, startOpen=false, onActiveChange }: { onClose?: () => void; homepage?:boolean; startOpen?:boolean; onActiveChange?:(active:boolean)=>void }) {
   const { params } = useSearch();
   return <SearchForm key={params.toString()} onClose={onClose} homepage={homepage} startOpen={startOpen} onActiveChange={onActiveChange} />;
@@ -44,30 +46,67 @@ function SearchForm({ onClose, homepage, startOpen, onActiveChange }: { onClose?
   const [highlight, setHighlight] = useState(-1);
   const [moreSuggestions,setMoreSuggestions]=useState(false);
   const mobile=useSyncExternalStore(subscribeMobile,mobileSnapshot,()=>false);
+  const reducedMotion=useSyncExternalStore(subscribeReducedMotion,reducedMotionSnapshot,()=>true);
   const root = useRef<HTMLDivElement>(null);
   const mobileSheet=useRef<HTMLDivElement>(null);
   const mobileOpen=mobile&&active!==null;
   const destinationInput = useRef<HTMLInputElement>(null);
   const mobileDestinationInput=useRef<HTMLInputElement>(null);
+  const [mobilePresent,setMobilePresent]=useState(false);
+  const [mobileSegment,setMobileSegment]=useState<Segment>("where");
+  const closePending=useRef(false);
+  if(mobileOpen&&!mobilePresent)setMobilePresent(true);
+  const mobileClosing=mobilePresent&&!mobileOpen;
+  const mobileDates=mobileSegment==="checkin"||mobileSegment==="checkout";
+  const closeSearch=useCallback(()=>{
+    setActive(null);onActiveChange?.(false);
+    if(mobilePresent)closePending.current=true;
+    else onClose?.();
+  },[mobilePresent,onActiveChange,onClose]);
+  useEffect(()=>{
+    if(mobileOpen||!mobilePresent)return;
+    const duration=reducedMotion?0:200;
+    const timer=window.setTimeout(()=>{
+      setMobilePresent(false);
+      if(closePending.current){closePending.current=false;onClose?.();}
+    },duration);
+    return()=>window.clearTimeout(timer);
+  },[mobileOpen,mobilePresent,onClose,reducedMotion]);
   useEffect(() => { if (!startOpen) return; const frame=requestAnimationFrame(() => (mobile?mobileDestinationInput:destinationInput).current?.focus({preventScroll:true})); return () => cancelAnimationFrame(frame); }, [startOpen,mobile]);
   const checkInId = useId();
   const suggestionsId = useId();
   useEffect(() => { if (!mobile && active === "checkin") document.getElementById(checkInId)?.focus({preventScroll:true}); }, [active, checkInId,mobile]);
 
-  function activate(segment:Segment|null) { setActive(segment); onActiveChange?.(segment!==null); }
+  function activate(segment:Segment|null) { if(segment)setMobileSegment(segment);setActive(segment); onActiveChange?.(segment!==null); }
   const suggestions = destinations.filter(({name}) => !location.trim() || name.toLowerCase().split(/[\s,]+/).some((word) => word.startsWith(location.trim().toLowerCase())));
+  useEffect(()=>{
+    if(highlight<0)return;
+    const option=document.getElementById(`${suggestionsId}-${highlight}`);
+    if(!option)return;
+    let container=option.parentElement;
+    while(container&&container!==document.body){
+      if(container.scrollHeight>container.clientHeight&&/auto|scroll/.test(getComputedStyle(container).overflowY)){
+        const row=option.getBoundingClientRect(),viewport=container.getBoundingClientRect();
+        if(row.bottom>viewport.bottom)container.scrollTop+=row.bottom-viewport.bottom;
+        else if(row.top<viewport.top)container.scrollTop-=viewport.top-row.top;
+        break;
+      }
+      container=container.parentElement;
+    }
+  },[highlight,suggestionsId]);
   useEffect(() => {
-    const key = (event: KeyboardEvent) => { if(event.defaultPrevented||(event.target instanceof Element&&event.target.closest('[role="dialog"]')&&event.target.closest('[role="dialog"]')!==mobileSheet.current))return; if (event.key === "Escape") { setActive(null); onActiveChange?.(false); onClose?.(); } };
-    const outside = (event: PointerEvent) => { if (event.target instanceof Node && !root.current?.contains(event.target)&&!mobileSheet.current?.contains(event.target)&&!(event.target instanceof Element&&event.target.closest('[role="dialog"]'))) { setActive(null); onActiveChange?.(false); onClose?.(); } };
+    const key = (event: KeyboardEvent) => { if(event.defaultPrevented||(event.target instanceof Element&&event.target.closest('[role="dialog"]')&&event.target.closest('[role="dialog"]')!==mobileSheet.current))return; if (event.key === "Escape")closeSearch(); };
+    const outside = (event: PointerEvent) => { if (event.target instanceof Node && !root.current?.contains(event.target)&&!mobileSheet.current?.contains(event.target)&&!(event.target instanceof Element&&event.target.closest('[role="dialog"]')))closeSearch(); };
     document.addEventListener("keydown", key); document.addEventListener("pointerdown", outside);
     return () => { document.removeEventListener("keydown", key); document.removeEventListener("pointerdown", outside); };
-  }, [onClose,onActiveChange]);
+  }, [closeSearch]);
   useEffect(()=>{
-    if(!mobileOpen)return;
+    if(!mobilePresent)return;
     const previousOverflow=document.documentElement.style.overflow;
     const opener=document.activeElement instanceof HTMLElement?document.activeElement:null;
     document.documentElement.style.overflow="hidden";
     function trap(event:KeyboardEvent){
+      if(mobileSheet.current?.inert&&event.key==="Tab"){event.preventDefault();return;}
       if(event.key!=="Tab"||!mobileSheet.current?.contains(document.activeElement))return;
       const elements=Array.from(mobileSheet.current.querySelectorAll<HTMLElement>('button:not(:disabled),input:not(:disabled),a[href],[tabindex="0"]')).filter(element=>element.getClientRects().length);
       const first=elements[0],last=elements[elements.length-1];
@@ -77,7 +116,7 @@ function SearchForm({ onClose, homepage, startOpen, onActiveChange }: { onClose?
     const frame=requestAnimationFrame(()=>(mobileDestinationInput.current??mobileSheet.current?.querySelector<HTMLElement>("button"))?.focus({preventScroll:true}));
     document.addEventListener("keydown",trap);
     return()=>{cancelAnimationFrame(frame);document.documentElement.style.overflow=previousOverflow;document.removeEventListener("keydown",trap);if(opener?.isConnected)opener.focus({preventScroll:true});};
-  },[mobileOpen]);
+  },[mobilePresent]);
   function submit() {
     update({ search: "1", view:window.innerWidth>=1128?"map":undefined, sw_lat: undefined, sw_lng: undefined, ne_lat: undefined, ne_lng: undefined, location: location.trim() || undefined, checkin: range?.from && range.to ? toDateString(range.from) : undefined, checkout: range?.to ? toDateString(range.to) : undefined, ...Object.fromEntries(Object.entries(guests).map(([key, value]) => [key, value ? String(value) : undefined])) });
     setActive(null); onActiveChange?.(false); onClose?.();
@@ -108,23 +147,23 @@ function SearchForm({ onClose, homepage, startOpen, onActiveChange }: { onClose?
       {!mobile&&dateActive&&<div className={`${styles.panel} ${styles.datesPanel}`}><DatePanel value={range} onChange={changeRange}/></div>}
       {!mobile&&active==="who"&&<div className={`${styles.panel} ${styles.guestPanel}`}><GuestPanel guests={guests} onChange={setGuests}/></div>}
     </div>
-    {mobile&&active&&createPortal(<div ref={mobileSheet} className={styles.mobileSheet} role="dialog" aria-modal="true" aria-label="Search stays">
-      <button className={styles.mobileClose} aria-label="Close search" onClick={()=>{activate(null);onClose?.();}}><X size={16}/></button>
+    {mobilePresent&&createPortal(<div className={styles.mobileOverlay} onPointerDown={event=>{if(mobileClosing){event.preventDefault();event.stopPropagation();}}}><div ref={mobileSheet} className={styles.mobileSheet} data-state={mobileClosing?"closing":"open"} role="dialog" aria-modal={!mobileClosing} aria-hidden={mobileClosing} inert={mobileClosing} aria-label="Search stays">
+      <button className={styles.mobileClose} aria-label="Close search" onClick={closeSearch}><X size={16}/></button>
       <nav className={styles.mobileTypes} aria-label="Search type">{[
         {name:"Homes",asset:"a32adab1-f9df-47e1-a411-bdff91b579c3"},
         {name:"Experiences",asset:"e47ab655-027b-4679-b2e6-df1c99a5c33d"},
         {name:"Services",asset:"3d67e9a9-520a-49ee-b439-7b3a75ea814d"},
       ].map(({name,asset})=><button key={name} type="button" aria-pressed={name==="Homes"} onClick={()=>{if(name!=="Homes")toast(`${name} are coming soon`);}}><AppImage src={`https://a0.muscache.com/im/pictures/airbnb-platform-assets/AirbnbPlatformAssets-search-bar-icons/original/${asset}.png?im_w=120`} width={40} height={40} alt="" unoptimized/><span>{name}</span></button>)}</nav>
-      <section className={`${styles.mobileCard} ${active==="where"?styles.mobileExpanded:""}`}>
-        {active==="where"?<><h2>Where?</h2><div className={styles.mobileInput}><Search size={18}/><input ref={mobileDestinationInput} {...destinationProps}/>{location&&clearLocation}</div><div id={suggestionsId} role="listbox" aria-label="Suggested destinations" className={`${styles.mobileSuggestions} ${moreSuggestions?styles.moreSuggestions:""}`}><p className={styles.mobileSuggestionTitle}>Suggested destinations</p>{destinationRows}</div><button type="button" className={styles.moreSuggestionsButton} aria-label={moreSuggestions?"Show fewer suggestions":"Show additional suggestions"} aria-expanded={moreSuggestions} onClick={()=>setMoreSuggestions(value=>!value)}><ChevronDown size={16} style={{rotate:moreSuggestions?"180deg":undefined}}/></button></>:<button className={styles.mobileSummary} onClick={()=>activate("where")}><span>Where</span><strong>{location||"I’m flexible"}</strong></button>}
+      <section className={`${styles.mobileCard} ${mobileSegment==="where"?styles.mobileExpanded:""}`}>
+        {mobileSegment==="where"?<><h2>Where?</h2><div className={styles.mobileInput}><Search size={18}/><input ref={mobileDestinationInput} {...destinationProps}/>{location&&clearLocation}</div><div id={suggestionsId} role="listbox" aria-label="Suggested destinations" className={`${styles.mobileSuggestions} ${moreSuggestions?styles.moreSuggestions:""}`}><p className={styles.mobileSuggestionTitle}>Suggested destinations</p>{destinationRows}</div><button type="button" className={styles.moreSuggestionsButton} aria-label={moreSuggestions?"Show fewer suggestions":"Show additional suggestions"} aria-expanded={moreSuggestions} onClick={()=>setMoreSuggestions(value=>!value)}><ChevronDown size={16} style={{rotate:moreSuggestions?"180deg":undefined}}/></button></>:<button className={styles.mobileSummary} onClick={()=>activate("where")}><span>Where</span><strong>{location||"I’m flexible"}</strong></button>}
       </section>
-      <section className={`${styles.mobileCard} ${dateActive?styles.mobileExpanded:""}`}>
-        {dateActive?<><h2>When?</h2><DatePanel value={range} onChange={changeRange}/></>:<button className={styles.mobileSummary} onClick={()=>activate("checkin")}><span>When</span><strong>{range?.from&&range.to?formatDateRange(range.from,range.to):"Add dates"}</strong></button>}
+      <section className={`${styles.mobileCard} ${mobileDates?styles.mobileExpanded:""}`}>
+        {mobileDates?<><h2>When?</h2><DatePanel value={range} onChange={changeRange}/></>:<button className={styles.mobileSummary} onClick={()=>activate("checkin")}><span>When</span><strong>{range?.from&&range.to?formatDateRange(range.from,range.to):"Add dates"}</strong></button>}
       </section>
-      <section className={`${styles.mobileCard} ${active==="who"?styles.mobileExpanded:""}`}>
-        {active==="who"?<><h2>Who?</h2><GuestPanel guests={guests} onChange={setGuests}/></>:<button className={styles.mobileSummary} onClick={()=>activate("who")}><span>Who</span><strong>{guestValue}</strong></button>}
+      <section className={`${styles.mobileCard} ${mobileSegment==="who"?styles.mobileExpanded:""}`}>
+        {mobileSegment==="who"?<><h2>Who?</h2><GuestPanel guests={guests} onChange={setGuests}/></>:<button className={styles.mobileSummary} onClick={()=>activate("who")}><span>Who</span><strong>{guestValue}</strong></button>}
       </section>
-      <div className={styles.mobileFooter}>{dateActive?<><button className={styles.clear} onClick={()=>setRange(undefined)}>Reset</button><button className={styles.darkButton} onClick={()=>activate("who")}>Next</button></>:<><button className={styles.clear} onClick={()=>{setLocation("");setRange(undefined);setGuests({adults:0,children:0,infants:0,pets:0});setHighlight(-1);}}>Clear all</button><button className={styles.mobileSearch} onClick={submit}><Search size={18}/>Search</button></>}</div>
-    </div>,document.body)}
+      <div className={styles.mobileFooter}>{mobileDates?<><button className={styles.clear} onClick={()=>setRange(undefined)}>Reset</button><button className={styles.darkButton} onClick={()=>activate("who")}>Next</button></>:<><button className={styles.clear} onClick={()=>{setLocation("");setRange(undefined);setGuests({adults:0,children:0,infants:0,pets:0});setHighlight(-1);}}>Clear all</button><button className={styles.mobileSearch} onClick={submit}><Search size={18}/>Search</button></>}</div>
+    </div></div>,document.body)}
   </div>;
 }

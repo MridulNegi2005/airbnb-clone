@@ -66,7 +66,7 @@
 @media(max-width:743px){.accountChevron{display:block;margin-left:auto;color:var(--text-secondary);max-width:18px}.accountPage[data-account-panel="menu"] .accountContent{display:none}.accountPage[data-account-panel="information"][data-signed-in="true"] .accountNavigation{display:none}.mobileAccountBack{display:grid;place-items:center;width:44px;height:44px;border-radius:50%;background:var(--surface);margin-bottom:24px}.activeAccountItem{background:transparent;font-weight:400}.accountContent{padding-bottom:96px}}
 
 .mobilePublicHeader{display:none}
-@media(max-width:743px){.publicPage{padding-top:84px}.mobilePublicHeader{position:fixed;top:0;left:0;right:0;height:64px;z-index:20;display:flex;align-items:center;justify-content:flex-end;background:var(--bg);padding:0 12px}.mobilePublicHeader>a{display:grid;place-items:center;width:44px;height:44px;border-radius:50%}.mobilePublicHeader>a:hover{background:var(--surface)}.about>h2{display:none}}
+@media(max-width:743px){.publicPage{padding-top:84px}.mobilePublicHeader{position:fixed;top:0;left:0;right:0;height:64px;z-index:20;display:flex;align-items:center;justify-content:flex-end;background:var(--bg);padding:0 12px}.mobilePublicHeader>button{border:0;background:transparent;display:grid;place-items:center;width:44px;height:44px;border-radius:50%}.mobilePublicHeader>button:hover{background:var(--surface)}.about>h2{display:none}}
 
 @media(max-width:743px){.publicPage{margin-top:12px;padding-top:72px;border-radius:32px 32px 0 0;background:var(--bg)}.mobilePublicHeader{top:12px;border-radius:32px 32px 0 0}.confirmed h2,.confirmed>p{display:none}.confirmed{margin:16px 0 28px;padding-bottom:0;border:0}.confirmed:not(:has(a)){display:none}.aboutRows{margin-top:32px}}
 

@@ -41,6 +41,7 @@ export function CheckoutClient({ id }: { id: number }) {
   const [guestsSession, setGuestsSession] = useState(0);
   const [comingSoon, setComingSoon] = useState<string | null>(null);
   const [messageOpen, setMessageOpen] = useState(false);
+  const [messageSession, setMessageSession] = useState(0);
   const [policyOpen, setPolicyOpen] = useState(false);
   const [submitError, setSubmitError] = useState<string | null>(null);
   const checkIn = params.get("checkin") ?? "";
@@ -120,15 +121,15 @@ export function CheckoutClient({ id }: { id: number }) {
 
         {status === "anonymous" ? <section className={styles.section}><h2>Log in to book your trip</h2><p>Your dates and guests will be kept while you log in.</p><button type="button" className={styles.darkButton} onClick={() => openAuth(undefined, () => router.replace(listingUrl))}>Log in</button></section> : <>
           {user?.id === property.host.id && <p className={styles.error} role="alert">You cannot book your own listing.</p>}
-          <PaymentForm host={property.host} onMessage={() => setMessageOpen(true)} pending={booking.isPending} disabled={disabled} error={submitError} onConfirm={() => { if (disabled || confirmationPending.current) return; confirmationPending.current = true; setSubmitError(null); booking.mutate(); }} onComingSoon={setComingSoon} />
+          <PaymentForm host={property.host} onMessage={() => { setMessageSession(value => value + 1); setMessageOpen(true); }} pending={booking.isPending} disabled={disabled} error={submitError} onConfirm={() => { if (disabled || confirmationPending.current) return; confirmationPending.current = true; setSubmitError(null); booking.mutate(); }} onComingSoon={setComingSoon} />
         </>}
       </div>
       <CheckoutSummaryCard listing={property} quote={!dateError ? quote.data : undefined} loading={quote.isFetching} error={quoteError} onRetry={() => void quote.refetch()} onPolicy={() => setPolicyOpen(true)}>{tripDetails}</CheckoutSummaryCard>
     </div>
-    {datesSession > 0 && <EditDatesModal key={datesSession} open={datesOpen} initial={dateRange(checkIn, checkOut)} minNights={property.min_nights} maxNights={property.max_nights} bookedRanges={availability.data ?? []} ready={availability.isSuccess && !availability.isFetching} failed={availability.isError} onRetry={() => void availability.refetch()} onClose={() => setDatesOpen(false)} onSave={range => { if (range.from && range.to && availability.isSuccess) { updateTrip({ checkin: toDateString(range.from), checkout: toDateString(range.to) }); setDatesOpen(false); } }} />}
-    {guestsSession > 0 && <EditGuestsModal key={guestsSession} open={guestsOpen} initial={guests} max={maxGuests} onClose={() => setGuestsOpen(false)} onSave={value => { updateTrip(Object.fromEntries(Object.entries(value).map(([key, count]) => [key, String(count)]))); setGuestsOpen(false); }} />}
+    {datesSession > 0 && <EditDatesModal key={`dates-${datesSession}`} open={datesOpen} initial={dateRange(checkIn, checkOut)} minNights={property.min_nights} maxNights={property.max_nights} bookedRanges={availability.data ?? []} ready={availability.isSuccess && !availability.isFetching} failed={availability.isError} onRetry={() => void availability.refetch()} onClose={() => setDatesOpen(false)} onSave={range => { if (range.from && range.to && availability.isSuccess) { updateTrip({ checkin: toDateString(range.from), checkout: toDateString(range.to) }); setDatesOpen(false); } }} />}
+    {guestsSession > 0 && <EditGuestsModal key={`guests-${guestsSession}`} open={guestsOpen} initial={guests} max={maxGuests} onClose={() => setGuestsOpen(false)} onSave={value => { updateTrip(Object.fromEntries(Object.entries(value).map(([key, count]) => [key, String(count)]))); setGuestsOpen(false); }} />}
     <Modal open={comingSoon !== null} onClose={() => setComingSoon(null)} title={comingSoon ?? "Coming soon"}><h2>Coming soon</h2><p>This demo does not support {comingSoon?.toLowerCase()} yet. You can still complete your demo reservation.</p></Modal>
-    {messageOpen && <ComposeMessageModal open listingId={id} hostName={property.host.name} onClose={() => setMessageOpen(false)} />}
+    {messageSession > 0 && <ComposeMessageModal key={`message-${messageSession}`} open={messageOpen} listingId={id} hostName={property.host.name} onClose={() => setMessageOpen(false)} />}
     <Modal open={policyOpen} onClose={() => setPolicyOpen(false)} title="Cancellation policy"><p>{cancellationPolicy}</p></Modal>
   </section>;
 }
