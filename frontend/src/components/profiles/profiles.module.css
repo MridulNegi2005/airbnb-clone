@@ -82,3 +82,82 @@
 @media(min-width:744px) and (max-width:1279px){.ownPage{margin-inline:48px;grid-template-columns:260px minmax(0,540px);column-gap:80px}.ownNavigation nav>button{width:260px}}
 @media(max-width:743px){.ownPage,.ownPage[data-account-profile=true]{display:block;padding:32px 24px 80px}.ownNavigation{position:relative;top:auto;padding-top:0;margin-bottom:24px}.collapseNavigation{display:none}.ownNavigation nav{display:flex;gap:8px;overflow:auto}.ownNavigation nav>button{width:auto;height:48px;flex-shrink:0;padding:8px}.ownNavigation nav>button>span{width:28px;height:28px;flex-basis:28px}.ownNavigation strong{font-size:14px}.ownContent{padding-top:0}.ownHeading{margin-bottom:24px}.ownHeading h1{font-size:28px}.ownPassport{max-width:100%;margin-inline:auto}.ownIdentity{margin-top:40px}.travelSection{margin-top:40px}.ownMobileBack{display:flex;align-items:center;gap:8px;margin-top:32px;font-size:14px}}
 @media(prefers-reduced-motion:reduce){.ownPage button,.ownPage a,.editorPage button,.editorPage a,.accountPage button,.accountPage a{transition:none}.ownPage button:active,.ownPage a:active,.editorPage button:active,.editorPage a:active,.accountPage button:active,.accountPage a:active{transform:none}.travelTrack{scroll-behavior:auto}}
+
+/* Signed-in desktop profile: measured against the current Airbnb profile. */
+.navigationHeading,.travelStamp{display:none}
+@media(min-width:744px){
+.ownPage,.ownPage[data-account-profile=true]{--profile-spring:linear(0 0%,.157943 9.09091%,.414669 18.1818%,.63031 27.2727%,.780228 36.3636%,.875101 45.4545%,.931756 54.5455%,.964243 63.6364%,.982305 72.7273%,.992098 81.8182%,.997294 90.9091%,1 100%);max-width:none;margin:0;padding:0;display:flex;gap:0;min-height:calc(100dvh - 80px);align-items:stretch}
+.ownNavigation{position:relative;top:auto;align-self:stretch;flex:0 0 38.85%;padding:0 32px;border-right:1px solid var(--divider);transition:flex-basis 583.772ms var(--profile-spring)}
+.ownNavigationInner{position:sticky;top:80px;padding:26px 17%;min-height:calc(100dvh - 80px);transition:padding 583.772ms var(--profile-spring)}
+.navigationHeading{display:block;font-size:32px;line-height:36px;letter-spacing:-.02em;font-weight:600;height:56px;margin:0 0 24px;overflow:hidden;white-space:nowrap;opacity:1;transition:opacity 150ms ease}
+.collapseNavigation{top:26px;right:17%;height:56px;width:56px;background:transparent;border-radius:50%;transition:background-color 150ms ease}
+.collapseNavigation:hover{background:#f7f7f7}
+.collapseNavigation svg{width:18px;height:18px;stroke-width:1.7}
+.ownNavigation nav>button{width:100%;padding:10px 16px;gap:16px;height:60px;border-radius:16px;overflow:hidden;transition:padding 583.772ms var(--profile-spring),gap 583.772ms var(--profile-spring),background-color 150ms ease}
+.ownNavigation nav>button>span{width:40px;height:40px;flex-basis:40px}
+.ownNavigation nav>button>span img{object-fit:contain}
+.ownNavigation strong{white-space:nowrap;font-size:16px;font-weight:500;opacity:1;transition:opacity 150ms ease}
+.ownContent{flex:1;min-width:0;padding:36px calc((100% - 38.85%) * .085 + 32px) 80px;transition:padding 583.772ms var(--profile-spring)}
+.ownHeading{height:36px;gap:20px;margin:0 0 24px}
+.ownHeading h1{font-size:32px;line-height:36px;font-weight:600;letter-spacing:-.02em}
+.ownPassport{width:345px;height:230px;margin:0;grid-template-columns:177px 96px;gap:24px;padding:32px 24px;box-shadow:0 6px 24px #00000012}
+.ownPassport .passportIdentity h2{margin-top:8px;font-size:32px;line-height:36px}
+.ownPassport .passportIdentity p{font-size:12px;line-height:16px;margin-top:0;color:#6a6a6a}
+.ownPassport .stats>div+div{margin-top:8px;padding-top:8px}
+.ownPassport .stats dt{font-size:22px;line-height:26px}
+.ownPassport .stats dd{font-size:10px;line-height:12px;margin-top:0}
+.ownIdentity{display:grid;gap:16px;height:auto;margin-top:32px;align-content:start;padding-bottom:40px;border-bottom:1px solid var(--divider)}
+.ownIdentity>p{display:flex;gap:12px;align-items:center;font-size:16px;line-height:24px;margin:0}
+.ownIdentity .identityLink{min-height:24px;height:24px;font-size:16px;line-height:24px;gap:12px;text-decoration:underline}
+.ownIdentity .identityLink:hover{background:transparent;color:var(--text-secondary)}
+.travelSection{margin-top:40px}
+.travelHeading{margin-bottom:32px}
+.travelHeading h2{font-size:22px;line-height:26px}
+.travelDots:has(button:only-child){visibility:hidden}
+.travelTrack{grid-auto-columns:calc((100% - 32px)/3);gap:16px;padding:4px 4px 12px;margin-inline:-4px}
+.travelStamp{display:flex;position:relative;flex-direction:column;justify-content:space-between;color:#377fb1;height:120px;border:2px solid currentColor;border-radius:12px;padding:8px 10px;transform:rotate(1deg);background:var(--bg);width:100%;overflow:hidden}
+.travelStamp>strong{font-size:18px;line-height:19px;max-width:120px;font-weight:700}
+.travelStamp>svg:first-of-type{align-self:flex-end;margin-top:-10px}
+.travelStamp>svg:last-child{position:absolute;right:10px;top:12px}
+.travelCard:nth-child(3n+1) .travelStamp{color:#157335;transform:rotate(-1deg)}
+.travelCard:nth-child(3n+3) .travelStamp{color:#ab623c;transform:rotate(-1.5deg)}
+.travelCard .travelPhoto{display:none}
+.travelCard h3{margin-top:12px}
+.ownIntroduction{margin-top:32px}
+.ownPage[data-collapsed=true] .ownContent{padding-inline:calc((100% - 121px) * .085 + 32px)}
+.ownPage[data-collapsed=true] .ownNavigation{flex-basis:121px;padding-inline:32px}
+.ownPage[data-collapsed=true] .ownNavigationInner{padding-inline:0}
+.ownPage[data-collapsed=true] .navigationHeading{opacity:0;pointer-events:none}
+.ownPage[data-collapsed=true] .collapseNavigation{left:0;right:auto}
+.ownPage[data-collapsed=true] .ownNavigation nav>button{width:56px;padding-inline:8px;gap:0}
+.ownPage[data-collapsed=true] .ownNavigation strong{display:block;opacity:0}
+.ownNavigation nav>button:focus-visible,.collapseNavigation:focus-visible{outline:2px solid var(--text);outline-offset:2px}
+}
+@media(prefers-reduced-motion:reduce){.ownNavigation,.ownNavigationInner,.navigationHeading,.ownNavigation strong,.ownNavigation nav>button{transition:none}}
+
+.publicLower{min-width:0}
+@media(min-width:744px){
+.publicPage{max-width:1280px;padding:64px 48px 80px;grid-template-columns:345px minmax(0,1fr);column-gap:40px;row-gap:40px}
+.publicPage .sidebar{position:static;align-self:start}
+.publicPage .passport{width:345px;min-height:230px;border:0;border-radius:24px;padding:32px 24px;grid-template-columns:177px 96px;gap:24px;box-shadow:0 6px 24px #00000012}
+.publicPage .passportIdentity h1{font-size:32px;line-height:36px;margin-top:8px}
+.publicPage .passportIdentity p{font-size:12px;line-height:16px;color:#6a6a6a;margin-top:0}
+.publicPage .stats dd{font-size:10px;line-height:12px;margin-top:0}
+.publicPage .stats dt{font-size:22px;line-height:26px}
+.publicPage .confirmed{display:none}
+.publicPage .about{display:flex;flex-wrap:wrap;align-items:center;column-gap:20px}
+.publicPage .about h2{font-size:32px;line-height:36px;font-weight:600;margin:0 0 32px}
+.publicPage .about>.ownEdit{margin-bottom:32px}
+.publicPage .aboutRows{flex-basis:100%;gap:16px;margin-bottom:0}
+.publicPage .aboutRows p,.publicPage .identityLink{gap:12px;min-height:24px;font-size:16px;line-height:24px}
+.publicPage .plainText{flex-basis:100%;margin-top:24px}
+.publicLower{grid-column:1/-1}
+.publicLower>.section:first-child{margin-top:0;padding-top:40px}
+}
+
+@media(min-width:744px) and (prefers-reduced-motion:no-preference){
+.ownPage[data-collapsed=true] .navigationHeading,.ownPage[data-collapsed=true] .ownNavigation strong{animation:profile-label-collapse 583.772ms var(--profile-spring) both}
+.ownPage[data-collapsed=false] .navigationHeading,.ownPage[data-collapsed=false] .ownNavigation strong{animation:profile-label-expand 583.772ms var(--profile-spring) both}
+@keyframes profile-label-collapse{0%{opacity:1}50%,100%{opacity:0}}
+@keyframes profile-label-expand{0%,25%{opacity:0}100%{opacity:1}}
+}

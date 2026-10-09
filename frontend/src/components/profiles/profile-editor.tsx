@@ -3,7 +3,7 @@ import { useRef, useState, type ChangeEvent, type FormEvent, type MouseEvent } f
 import { useQueryClient } from "@tanstack/react-query";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
-import { BriefcaseBusiness, Camera, ChevronLeft, ChevronRight, Languages, MapPin, Pencil, ShieldCheck, UserRound, X } from "lucide-react";
+import { BookOpen, BriefcaseBusiness, Camera, ChevronLeft, ChevronRight, Clock, Globe, GraduationCap, Languages, Lightbulb, MapPin, Music, PartyPopper, PawPrint, Pencil, ShieldCheck, Sparkles, UserRound, WandSparkles, X } from "lucide-react";
 import { toast } from "sonner";
 import { queryKeys, updateProfile, uploadPhoto } from "@/lib/api";
 import { useAuth } from "@/providers/auth-provider";
@@ -14,6 +14,7 @@ import { ProfileLoading, ProfileSignIn } from "./profile-states";
 import { LanguagesModal } from "./languages-modal";
 import { useProfileCooldown } from "./use-profile-cooldown";
 import styles from "./profiles.module.css";
+import desktop from "./profile-editor-desktop.module.css";
 import { PublicProfile } from "./public-profile";
 
 export function ProfileEditor({ edit = true }: { edit?: boolean }) {
@@ -51,10 +52,10 @@ function Editor({ user }: { user: UserPrivate }) {
   }
   async function save(event: FormEvent<HTMLFormElement>) {
     event.preventDefault(); if (busy || mutationLock.current) return; const body = changes();
-    if (!Object.keys(body).length) { router.push(`/users/${user.id}`); return; }
+    if (!Object.keys(body).length) { router.push("/account/profile"); return; }
     mutationLock.current = true;
     setPending(true); setError("");
-    try { const updated = await updateProfile(body); updateUser(updated); setDraft({ name: updated.name, work: updated.work ?? "", lives_in: updated.lives_in ?? "", about: updated.about ?? "", languages: updated.languages ?? [] }); await client.invalidateQueries({ queryKey: queryKeys.profile(updated.id) }); toast.success("Profile updated"); router.push(`/users/${updated.id}`); }
+    try { const updated = await updateProfile(body); updateUser(updated); setDraft({ name: updated.name, work: updated.work ?? "", lives_in: updated.lives_in ?? "", about: updated.about ?? "", languages: updated.languages ?? [] }); await client.invalidateQueries({ queryKey: queryKeys.profile(updated.id) }); toast.success("Profile updated"); router.push("/account/profile"); }
     catch (reason) { cooldown.capture(reason); setError(reason instanceof Error ? reason.message : "Your profile couldn't be saved. Try again."); }
     finally { setPending(false); mutationLock.current = false; }
   }
@@ -67,24 +68,40 @@ function Editor({ user }: { user: UserPrivate }) {
     catch (reason) { cooldown.capture(reason); setError(reason instanceof Error ? reason.message : "Your photo couldn't be uploaded. Try again."); }
     finally { setUploading(false); mutationLock.current = false; }
   }
-  return <div className={styles.editorPage}>
-    <header className={styles.mobileEditorHeader}><Link href={`/users/${user.id}`} aria-label="Close profile editor" aria-disabled={pending || uploading} onClick={preventPendingNavigation}><X size={20} /></Link><h2>Edit profile</h2></header>
-    <Link href={`/users/${user.id}`} className={styles.back} aria-disabled={pending || uploading} onClick={preventPendingNavigation}><ChevronLeft size={18} />Profile</Link>
-    <form onSubmit={save} className={styles.editor}>
-      <aside className={styles.editAvatar}>
+  const unavailable = () => toast.info("This profile field is not available yet.");
+  const extraFields = [
+    { label: "Where I’ve always wanted to go", icon: Globe },
+    { label: "My fun fact", icon: Lightbulb },
+    { label: "Pets", icon: PawPrint },
+    { label: "Decade I was born", icon: PartyPopper },
+    { label: "Where I went to school", icon: GraduationCap },
+    { label: "I spend too much time", icon: Clock },
+    { label: "My most useless skill", icon: WandSparkles },
+    { label: "My favourite song in secondary school", icon: Music },
+    { label: "I’m obsessed with", icon: Sparkles },
+    { label: "My biography title would be", icon: BookOpen },
+  ];
+  const extraRow = (index: number) => { const item = extraFields[index]; if (!item) return null; const Icon = item.icon; return <button key={item.label} type="button" aria-disabled="true" title="This field is not available yet" aria-label={`${item.label} — not available yet`} onClick={unavailable}><Icon size={24} /><span>{item.label}</span></button>; };
+  return <div className={`${styles.editorPage} ${desktop.page}`}>
+    <header className={styles.mobileEditorHeader}><Link href="/account/profile" aria-label="Close profile editor" aria-disabled={pending || uploading} onClick={preventPendingNavigation}><X size={20} /></Link><h2>Edit profile</h2></header>
+    <Link href="/account/profile" className={styles.back} aria-disabled={pending || uploading} onClick={preventPendingNavigation}><ChevronLeft size={18} />Profile</Link>
+    <form onSubmit={save} className={`${styles.editor} ${desktop.editor}`}>
+      <aside className={`${styles.editAvatar} ${desktop.avatar}`}>
         <ProfileAvatar user={user} size={214} />
         <button type="button" className={styles.avatarEdit} disabled={busy} onClick={() => fileInput.current?.click()}><Camera size={16} />{uploading ? uploadPhase === "processing" ? "Processing…" : uploadPhase === "queued" ? "Queued…" : "Uploading…" : "Edit"}</button>
         <input ref={fileInput} type="file" accept="image/jpeg,image/png,image/webp" aria-label="Upload profile photo" hidden onChange={event => void avatar(event)} />
+        <button type="button" className={desktop.nameEdit} disabled={pending} onClick={() => openField("name")}><UserRound size={16} />{draft.name}<Pencil size={14} /></button>
       </aside>
       <div className={styles.editorFields}>
-        <header className={styles.editorHeader}><h1>My profile</h1><p>Hosts and guests can see your profile and it may appear across Airbnb to help us build trust in our community.</p></header>
-        <div className={styles.profileFieldRows}>
-          <button type="button" disabled={pending} onClick={() => openField("name")}><UserRound size={24} /><span>Name: {draft.name}</span><Pencil size={16} /></button>
-          <button type="button" disabled={pending} onClick={() => openField("work")}><BriefcaseBusiness size={24} /><span>{draft.work ? `My work: ${draft.work}` : "My work"}</span><Pencil size={16} /></button>
-          <button type="button" disabled={pending} onClick={() => { setLanguagesSession(value => value + 1); setLanguagesOpen(true); }}><Languages size={24} /><span>{draft.languages.length ? `Languages I speak: ${new Intl.ListFormat("en-IN").format(draft.languages)}` : "Languages I speak"}</span><Pencil size={16} /></button>
-          <button type="button" disabled={pending} onClick={() => openField("lives_in")}><MapPin size={24} /><span>{draft.lives_in ? `Where I live: ${draft.lives_in}` : "Where I live"}</span><Pencil size={16} /></button>
+        <header className={`${styles.editorHeader} ${desktop.heading}`}><h1>My profile</h1><p>Hosts and guests can see your profile and it may appear across Airbnb to help us build trust in our community. <Link href="/privacy" className={desktop.learnMore}>Learn more</Link></p></header>
+        <div className={`${styles.profileFieldRows} ${desktop.rows}`}>
+          <button type="button" disabled={pending} onClick={() => openField("work")}><BriefcaseBusiness size={24} /><span>{draft.work ? `My work: ${draft.work}` : "My work"}</span><ChevronRight size={18} /></button>
+          {extraRow(0)}{extraRow(1)}{extraRow(2)}{extraRow(3)}{extraRow(4)}{extraRow(5)}{extraRow(6)}{extraRow(7)}
+          <button type="button" disabled={pending} onClick={() => { setLanguagesSession(value => value + 1); setLanguagesOpen(true); }}><Languages size={24} /><span>{draft.languages.length ? `Languages I speak: ${new Intl.ListFormat("en-IN").format(draft.languages)}` : "Languages I speak"}</span><ChevronRight size={18} /></button>
+          {extraRow(8)}{extraRow(9)}
+          <button type="button" disabled={pending} onClick={() => openField("lives_in")}><MapPin size={24} /><span>{draft.lives_in ? `Where I live: ${draft.lives_in}` : "Where I live"}</span><ChevronRight size={18} /></button>
         </div>
-        <section className={styles.aboutEditor}><h2>About me</h2>{draft.about ? <p className={styles.plainText}>{draft.about}</p> : <p className="muted">Write something fun and punchy.</p>}<button type="button" className="outline-button" disabled={pending} onClick={() => openField("about")}>{draft.about ? "Edit intro" : "Add intro"}</button></section>
+        <section className={`${styles.aboutEditor} ${desktop.about}`}><h2>About me</h2><div className={desktop.intro}>{draft.about ? <p className={styles.plainText}>{draft.about}</p> : <p className="muted">Write something fun and punchy.</p>}<button type="button" disabled={pending} onClick={() => openField("about")}>{draft.about ? "Edit intro" : "Add intro"}</button></div></section>
         <Link href="/account/verify" className={styles.verificationLink} aria-disabled={pending || uploading} onClick={preventPendingNavigation}><ShieldCheck size={24} /><div><strong>{user.is_identity_verified ? "Identity verified" : "Verify your identity"}</strong><span>{user.is_identity_verified ? "Your identity badge appears on your profile." : "Add a verified badge to your profile with our demo flow."}</span></div><ChevronRight size={20} /></Link>
         {error && <p role="alert" className="error-text">{error}</p>}
       </div>
