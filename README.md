@@ -285,7 +285,7 @@ The container runs as a user without privileges, with a read-only file system an
 
 ### Demo accounts
 
-Use these two accounts to try the live demo. The password for both accounts is `demo-I2vAZFI_IUaj`. The demo seed sets this password from `SEED_USER_PASSWORD`. The other seeded accounts get a random password that nobody knows.
+Use these two accounts to try the live demo. The password for both accounts is `Demo@airbnb`. The demo seed sets this password from `SEED_USER_PASSWORD`. The other seeded accounts get a random password that nobody knows.
 
 - Guest: `rohan@example.com`
 - Host: `kavya@example.com`
