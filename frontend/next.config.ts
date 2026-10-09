@@ -21,7 +21,7 @@ const config: NextConfig = {
       `script-src 'self' 'unsafe-inline' ${development ? "'unsafe-eval'" : ""} https://maps.googleapis.com https://maps.gstatic.com https://*.googleapis.com https://accounts.google.com https://*.gstatic.com https://static.cloudflareinsights.com`,
       "style-src 'self' 'unsafe-inline' https://fonts.googleapis.com https://accounts.google.com",
       "font-src 'self' data: https://fonts.gstatic.com https://a0.muscache.com",
-      `connect-src 'self' ${apiOrigin} https://maps.googleapis.com https://maps.gstatic.com https://*.googleapis.com https://accounts.google.com https://*.gstatic.com https://cloudflareinsights.com ${development ? "ws://localhost:3000 ws://127.0.0.1:3000" : ""}`,
+      `connect-src 'self' data: ${apiOrigin} https://maps.googleapis.com https://maps.gstatic.com https://*.googleapis.com https://accounts.google.com https://*.gstatic.com https://cloudflareinsights.com ${development ? "ws://localhost:3000 ws://127.0.0.1:3000" : ""}`,
       `img-src 'self' data: blob: https: ${development ? "http://localhost:8000" : ""}`,
       "media-src 'self' https://stream.media.muscache.com",
       "frame-src https://accounts.google.com https://www.google.com",

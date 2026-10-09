@@ -1,6 +1,6 @@
 "use client";
 
-import { useCallback, useEffect, useRef, useState, type ReactNode } from "react";
+import { Component, useCallback, useEffect, useRef, useState, type ReactNode } from "react";
 import { APIProvider, AdvancedMarker, Map, useMap, useMapsLibrary } from "@vis.gl/react-google-maps";
 import { useQuery } from "@tanstack/react-query";
 import { MapPin, X } from "lucide-react";
@@ -16,11 +16,24 @@ const apiKey = process.env.NEXT_PUBLIC_GOOGLE_MAPS_API_KEY;
 export function MapUnavailable({ message = "Interactive maps are unavailable right now. You can still browse the stays in the list." }: { message?: string }) {
   return <div className={styles.unavailable} role="status"><MapPin size={32} strokeWidth={1.5} /><h3>Map unavailable</h3><p>{message}</p></div>;
 }
+const mapFailedMessage = "The map could not be loaded. You can still browse and book the stays in the list.";
+
+// Google reports a refused key or exhausted quota through gm_authFailure, not the loader's onError.
+class MapErrorBoundary extends Component<{ children: ReactNode }, { failed: boolean }> {
+  state = { failed: false };
+  static getDerivedStateFromError() { return { failed: true }; }
+  render() { return this.state.failed ? <MapUnavailable message={mapFailedMessage} /> : this.props.children; }
+}
+
 export function MapProvider({ children }: { children: ReactNode }) {
   const [failed, setFailed] = useState(false);
+  useEffect(() => {
+    const target = window as Window & { gm_authFailure?: () => void };
+    target.gm_authFailure = () => setFailed(true);
+    return () => { delete target.gm_authFailure; };
+  }, []);
   if (!apiKey || !mapId) return <MapUnavailable />;
-  if (failed) return <MapUnavailable message="The map could not be loaded. You can still browse and book the stays in the list." />;
-  return <APIProvider apiKey={apiKey} region="IN" language="en" onError={() => setFailed(true)}>{children}</APIProvider>;
+  return <MapErrorBoundary>{failed ? <MapUnavailable message={mapFailedMessage} /> : <APIProvider apiKey={apiKey} region="IN" language="en" onError={() => setFailed(true)}>{children}</APIProvider>}</MapErrorBoundary>;
 }
 export function useServiceArea() {
   return useQuery({ queryKey: ["service-area"], queryFn: ({ signal }) => getServiceArea(signal), staleTime: Infinity });
