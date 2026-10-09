@@ -2,7 +2,7 @@
 
 import { useEffect, useRef, useState } from "react";
 import Link from "next/link";
-import { Check, ChevronDown } from "lucide-react";
+import { CalendarX2, Check, ChevronRight } from "lucide-react";
 import { useRouter, useSearchParams } from "next/navigation";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { toast } from "sonner";
@@ -156,7 +156,7 @@ export function TripsView() {
       {query.isError ? <div className={styles.empty} role="alert"><h2>We couldn&apos;t load your trips</h2><p>{query.error.message}</p><button type="button" className="outline-button" onClick={() => { void query.refetch(); }} disabled={query.isFetching}>{query.isFetching ? "Trying again..." : "Try again"}</button></div>
         : <>
           <div id="trips-list" className={styles.tripList}>{visible.length ? visible.map(booking => <TripCard key={booking.id} booking={booking} guest={user} selected={detailId === booking.id} highlight={booking.id === highlight} today={today} onOpen={openTrip} />) : <EmptyTrips cancelled={showCancelled} />}</div>
-          <button type="button" className={styles.cancelledToggle} aria-expanded={showCancelled} aria-controls="trips-list" onClick={() => setShowCancelled(value => !value)}>Cancelled reservations<ChevronDown size={16} aria-hidden="true" /></button>
+          <button type="button" className={styles.cancelledToggle} aria-expanded={showCancelled} aria-controls="trips-list" onClick={() => setShowCancelled(value => !value)}><CalendarX2 size={22} strokeWidth={1.5} aria-hidden="true" /><span>Cancelled reservations</span><ChevronRight size={16} aria-hidden="true" /></button>
           <p className={styles.help}>Can&apos;t find your reservation here? <Link href="/coming-soon">Visit the Help Centre</Link></p>
         </>}
       </>}
