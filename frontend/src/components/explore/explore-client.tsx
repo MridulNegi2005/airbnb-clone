@@ -46,7 +46,7 @@ export function ExploreClient({ initialData }: { initialData?: InitialListings }
     observer.observe(sentinel.current);
     return () => observer.disconnect();
   }, [homepage, hasNextPage, isFetchingNextPage, isFetchNextPageError, blocked, fetchNextPage]);
-  if(homepage) return <section className={styles.homepage} aria-label="Discover homes"><h1 className="sr-only">Airbnb clone homepage</h1>{listings.isPending?<HomepageSkeleton/>:listings.isError&&!listings.data?<div className={styles.state}><h2>Unable to load homes</h2><p>Please try again in a moment.</p><button className={styles.outline} disabled={blocked} onClick={()=>void listings.refetch()}>Try again</button></div>:all.length===0?<div className={styles.state}><h2>No homes available yet</h2><p>Check back for new places to stay.</p></div>:homeRows(all).map((row,index)=><HomeListingRow key={row.title} title={row.title} items={row.items} priority={index<2} onBrowse={()=>{const cities=new Set(row.items.map(item=>item.city));if(cities.size===1)update({location:row.items[0]?.city,search:"1",view:window.innerWidth>=1128?"map":undefined},true);else update({search:"1",view:window.innerWidth>=1128?"map":undefined,sw_lat:String(Math.min(...row.items.map(item=>item.latitude))-.015),sw_lng:String(Math.min(...row.items.map(item=>item.longitude))-.015),ne_lat:String(Math.max(...row.items.map(item=>item.latitude))+.015),ne_lng:String(Math.max(...row.items.map(item=>item.longitude))+.015)},true);}}/>)}</section>;
+  if(homepage) return <section className={styles.homepage} aria-label="Discover homes"><h1 className="sr-only">Airbnb clone homepage</h1>{listings.isPending?<HomepageSkeleton/>:listings.isError&&!listings.data?<div className={styles.state}><h2>Unable to load homes</h2><p>Please try again in a moment.</p><button className={styles.outline} disabled={blocked} onClick={()=>void listings.refetch()}>Try again</button></div>:all.length===0?<div className={styles.state}><h2>No homes available yet</h2><p>Check back for new places to stay.</p></div>:homeRows(all).map((row,index)=><HomeListingRow key={row.title} title={row.title} subtitle={row.subtitle} items={row.items} priority={index<2} onBrowse={()=>{const cities=new Set(row.items.map(item=>item.city));if(cities.size===1)update({location:row.items[0]?.city,search:"1",view:window.innerWidth>=1128?"map":undefined},true);else update({search:"1",view:window.innerWidth>=1128?"map":undefined,sw_lat:String(Math.min(...row.items.map(item=>item.latitude))-.015),sw_lng:String(Math.min(...row.items.map(item=>item.longitude))-.015),ne_lat:String(Math.max(...row.items.map(item=>item.latitude))+.015),ne_lng:String(Math.max(...row.items.map(item=>item.longitude))+.015)},true);}}/>)}</section>;
   return <>
     <CategoryBar onFilters={() => {setFiltersMounted(true);setFiltersOpen(true);}} />
     <section className={`${styles.page} ${isMap ? styles.mapView : !params.get("view")?styles.autoMapView:""}`} >
@@ -74,19 +74,19 @@ export function ExploreClient({ initialData }: { initialData?: InitialListings }
 
 function homeRows(listings: Listing[]) {
   const groups = [
-    { title: "Popular homes in Bengaluru", cities: ["Bengaluru"] },
-    { title: "Getaways in the Western Ghats", cities: ["Coorg", "Chikkamagaluru", "Sakleshpur"] },
-    { title: "Stay near Bengaluru", cities: ["Nandi Hills", "Kanakapura", "Ramanagara", "Hosur"] },
-    { title: "Places to stay around Kabini", cities: ["Kabini", "Bandipur", "BR Hills", "Mysuru", "Shivanasamudra"] },
+    { title: "Popular homes in Bengaluru", subtitle: "Guests often rate these homes highly", cities: ["Bengaluru"] },
+    { title: "Getaways in the Western Ghats", subtitle: "Coffee estates and misty hills", cities: ["Coorg", "Chikkamagaluru", "Sakleshpur"] },
+    { title: "Stay near Bengaluru", subtitle: "Weekend escapes within a short drive", cities: ["Nandi Hills", "Kanakapura", "Ramanagara", "Hosur"] },
+    { title: "Places to stay around Kabini", subtitle: "Riverside stays close to the forests", cities: ["Kabini", "Bandipur", "BR Hills", "Mysuru", "Shivanasamudra"] },
   ];
   const used = new Set<string>();
-  const rows = groups.map(group => {group.cities.forEach(city=>used.add(city));return {title:group.title,items:listings.filter(listing=>group.cities.includes(listing.city))};}).filter(row=>row.items.length);
+  const rows = groups.map(group => {group.cities.forEach(city=>used.add(city));return {title:group.title,subtitle:group.subtitle as string|undefined,items:listings.filter(listing=>group.cities.includes(listing.city))};}).filter(row=>row.items.length);
   const extraCities=[...new Set(listings.map(listing=>listing.city))].filter(city=>!used.has(city));
-  extraCities.forEach(city=>rows.push({title:`Homes in ${city}`,items:listings.filter(listing=>listing.city===city)}));
+  extraCities.forEach(city=>rows.push({title:`Homes in ${city}`,subtitle:undefined,items:listings.filter(listing=>listing.city===city)}));
   return rows;
 }
 
-function HomeListingRow({ title, items, priority, onBrowse }: { title: string; items: Listing[]; priority: boolean; onBrowse: () => void }) {
+function HomeListingRow({ title, subtitle, items, priority, onBrowse }: { title: string; subtitle?: string; items: Listing[]; priority: boolean; onBrowse: () => void }) {
   const track = useRef<HTMLDivElement>(null);
   const visibleItems=items.slice(0,8);
   const [position, setPosition] = useState({ start: true, end: items.length <= 1 });
@@ -100,7 +100,7 @@ function HomeListingRow({ title, items, priority, onBrowse }: { title: string; i
     if(element)element.scrollBy({left:direction*(element.clientWidth+12),behavior:window.matchMedia("(prefers-reduced-motion: reduce)").matches?"instant":"smooth"});
   }
   return <section className={styles.homeRow} aria-label={title}>
-    <div className={styles.rowHeading}><h2><button type="button" onClick={onBrowse}>{title}<span><ArrowRight size={14}/></span></button></h2><div className={styles.rowControls}><button type="button" aria-label={`Previous homes: ${title}`} disabled={position.start} onClick={()=>move(-1)}><ChevronLeft size={16}/></button><button type="button" aria-label={`Next homes: ${title}`} disabled={position.end} onClick={()=>move(1)}><ChevronRight size={16}/></button></div></div>
+    <div className={styles.rowHeading}><h2><button type="button" onClick={onBrowse}>{title}<span><ArrowRight size={14}/></span></button></h2><div className={styles.rowControls}><button type="button" aria-label={`Previous homes: ${title}`} disabled={position.start} onClick={()=>move(-1)}><ChevronLeft size={16}/></button><button type="button" aria-label={`Next homes: ${title}`} disabled={position.end} onClick={()=>move(1)}><ChevronRight size={16}/></button></div></div>{subtitle&&<p className={styles.rowSubtitle}>{subtitle}</p>}
     <div ref={track} className={styles.homeTrack} onScroll={measure}>{visibleItems.map((listing,index)=><ListingCard key={listing.id} listing={listing} compact priority={priority&&index<2} imageSizes="(max-width:549px) 42vw, (max-width:743px) 29vw, (max-width:949px) calc((100vw - 116px) / 4), (max-width:1127px) calc((100vw - 128px) / 5), (max-width:1439px) calc((100vw - 171px) / 6), (min-width:1900px) calc((100vw - 207px) / 9), calc((100vw - 183px) / 7)"/>)}<HomeRowSeeAll items={visibleItems} title={title} onBrowse={onBrowse}/></div>
   </section>;
 }
