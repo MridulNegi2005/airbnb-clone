@@ -14,20 +14,9 @@ import styles from "./site-shell.module.css";
 import { Footer } from "./footer";
 import { BrandLogo } from "./brand-logo";
 import { CompactSearchContent } from "./compact-search-content";
+import { useAfterPageLoad } from "@/hooks/use-after-page-load";
 
 const SearchBar=dynamic(()=>import("@/components/search/search-bar").then(module=>module.SearchBar),{loading:()=> <div className="page-shell" role="status" style={{minHeight:72,paddingBlock:24}}>Loading search…</div>});
-
-// The tab videos are decoration: start them only once the page and its main photo have loaded.
-function useAfterPageLoad() {
-  const [allowed,setAllowed]=useState(false);
-  useEffect(()=>{
-    let handle:number|undefined;
-    const allow=()=>{handle=window.setTimeout(()=>setAllowed(true),300);};
-    if(document.readyState==="complete")allow();else window.addEventListener("load",allow,{once:true});
-    return()=>{window.removeEventListener("load",allow);if(handle!==undefined)window.clearTimeout(handle);};
-  },[]);
-  return allowed;
-}
 
 function SearchTypeIcon({asset,selected,active,video}:{asset:string;selected:string;active:boolean;video:string}) {
   const [ready,setReady]=useState(false);
@@ -134,5 +123,5 @@ export function SiteShell({children}:{children:ReactNode}){
   if(path.startsWith("/hosting/listings/"))return <>{children}</>;
   const inbox=path.startsWith("/messages"),checkout=path.startsWith("/book/"),account=path==="/account",wishlistDetail=path.startsWith("/wishlists/");
   const className=path.startsWith("/users/")?"public-profile-shell":path.startsWith("/account/profile")?"profile-editor-shell":path==="/trips"?"trips-shell":path.startsWith("/rooms/")?"detail-shell":path.startsWith("/book/")?"checkout-shell":inbox?"inbox-shell":wishlistDetail?"wishlist-detail-shell":"";
-  return <div className={`${className} ${path==="/"?styles.homeRoute:""}`}>{account?<header className={styles.accountHeader}><BrandLogo/><Link href="/" className="outline-button">Done</Link></header>:checkout?<header className={styles.checkoutHeader}><BrandLogo/></header>:<Suspense fallback={<div style={{height:80,borderBottom:"1px solid var(--divider)"}}/>}><Header hosting={path.startsWith("/hosting")}/></Suspense>}<main id="main-content">{children}</main>{!inbox&&!account&&!wishlistDetail&&(checkout?<footer className={styles.checkoutFooter}><span>© {new Date().getFullYear()} Airbnb clone</span><Link href="/privacy">Privacy</Link><Link href="/terms">Terms</Link><Link href="/coming-soon">Company details</Link></footer>:<Footer/>)}<MobileTabs/></div>;
+  return <div className={`${className} ${path==="/"?styles.homeRoute:""}`}>{account?<header className={styles.accountHeader}><BrandLogo/><Link href="/" className="outline-button">Done</Link></header>:checkout?<header className={styles.checkoutHeader}><BrandLogo/></header>:<Suspense fallback={<div className={styles.headerFallback}/>}><Header hosting={path.startsWith("/hosting")}/></Suspense>}<main id="main-content">{children}</main>{!inbox&&!account&&!wishlistDetail&&(checkout?<footer className={styles.checkoutFooter}><span>© {new Date().getFullYear()} Airbnb clone</span><Link href="/privacy">Privacy</Link><Link href="/terms">Terms</Link><Link href="/coming-soon">Company details</Link></footer>:<Footer/>)}<MobileTabs/></div>;
 }

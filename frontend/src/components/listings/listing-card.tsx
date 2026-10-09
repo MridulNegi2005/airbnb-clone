@@ -13,8 +13,8 @@ import styles from "./listing-card.module.css";
 
 const gridImageSizes="(max-width:549px) calc(100vw - 48px), (max-width:743px) calc((100vw - 72px) / 2), (max-width:949px) calc((100vw - 104px) / 2), (max-width:1127px) calc((100vw - 128px) / 3), (max-width:1639px) calc((100vw - 232px) / 4), (max-width:1879px) calc((100vw - 256px) / 5), (max-width:2519px) calc((100vw - 280px) / 6), 374px";
 
-export function ListingCard({listing,priority=false,searchParams="",imageSizes=gridImageSizes,compact=false}: {
-  listing:ListingCardType;priority?:boolean;searchParams?:string;imageSizes?:string;compact?:boolean;
+export function ListingCard({listing,priority=false,searchParams="",imageSizes=gridImageSizes,compact=false,deferImage=false}: {
+  listing:ListingCardType;priority?:boolean;searchParams?:string;imageSizes?:string;compact?:boolean;deferImage?:boolean;
 }) {
   const {savedIds,toggle,isBlocked}=useWishlist();
   const params=new URLSearchParams(searchParams),checkIn=params.get("checkin"),checkOut=params.get("checkout");
@@ -29,7 +29,7 @@ export function ListingCard({listing,priority=false,searchParams="",imageSizes=g
     <div className="listing-photo">
       {compact?<>
         <Link href={href} aria-label={`View ${listing.title}`} className="listing-photo-link">
-          {listing.image_urls[0]?<div className="listing-slide"><Image src={listing.image_urls[0]} alt={`${listing.title}, photo 1`} fill loading={priority?"eager":undefined} fetchPriority={priority?"high":undefined} sizes={imageSizes}/></div>:<div className="photo-fallback" style={{height:"100%"}}><ImageOff size={32}/><span>No photo available</span></div>}
+          {listing.image_urls[0]?<div className="listing-slide">{!deferImage&&<Image src={listing.image_urls[0]} alt={`${listing.title}, photo 1`} fill loading={priority?"eager":undefined} fetchPriority={priority?"high":undefined} sizes={imageSizes}/>}</div>:<div className="photo-fallback" style={{height:"100%"}}><ImageOff size={32}/><span>No photo available</span></div>}
         </Link>
         {overlays}
       </>:<ListingPhotoCarousel listing={listing} href={href} priority={priority} imageSizes={imageSizes}>{overlays}</ListingPhotoCarousel>}

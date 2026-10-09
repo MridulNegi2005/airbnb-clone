@@ -126,3 +126,13 @@
 
 @media(min-width:744px) and (max-width:949px){.homeHeader :global(.brand-logo),.utilityHeader:not(.wishlistDetailHeader) :global(.brand-logo),.inboxHeader :global(.brand-logo){left:-8px}.detailHeader:not(.utilityHeader) :global(.brand-logo){left:-24px}:global(.detail-shell) .detailHeader:global(.site-header){display:block}}
 @media(min-width:950px) and (max-width:1439px){.detailHeader:not(.utilityHeader) :global(.brand-logo){left:-16px}}
+/* The header streams after the page content. On "/" its placeholder takes the home header's height and the content gets
+   the home header's top padding from the first paint, so nothing moves or animates when the real header arrives.
+   Search results ("/?…") mark their content with [data-results] and keep the plain 80px header space. */
+.headerFallback{height:80px;border-bottom:1px solid var(--divider)}
+.homeRoute .headerFallback{height:153px;border-bottom:0}
+@media(min-width:744px){.homeRoute .headerFallback{height:96px}.homeRoute:has(.headerFallback)>main{padding-top:104px}}
+@media(min-width:744px) and (max-width:1439px){.homeRoute .headerFallback{height:80px}.homeRoute:has(.headerFallback)>main{padding-top:112px}}
+.homeRoute:has([data-results]) .headerFallback{height:80px;border-bottom:1px solid var(--divider)}
+.homeRoute:has([data-results]):has(.headerFallback)>main{padding-top:0}
+@media(max-width:743px){.homeTabs button{padding:0 15px 0 11px;gap:0;font-weight:400}.tabArt{width:28px;height:28px}.tabMotion,.tabArt img,.tabArt video{width:28px;height:28px}}

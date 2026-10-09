@@ -13,6 +13,7 @@ import { CategoryBar } from "./category-bar";
 import { HomepageSkeleton, ListingSkeleton } from "./listing-skeleton";
 import { HomeRowSeeAll } from "./home-row-see-all";
 import styles from "./explore.module.css";
+import { useAfterPageLoad } from "@/hooks/use-after-page-load";
 
 const FiltersModal=dynamic(()=>import("@/components/search/filters-modal").then(module=>module.FiltersModal));
 
@@ -55,7 +56,7 @@ export function ExploreClient({ initialData }: { initialData?: InitialListings }
     <section className={`${styles.page} ${isMap ? styles.mapView : !params.get("view")?styles.autoMapView:""}`} >
       <section className={styles.listPane} style={{viewTransitionName:"search-feed"}} aria-label="Available stays">
       {listings.isPending||listings.isPlaceholderData ? <><div className={styles.resultsSkeletonHeader}><div className={`skeleton ${styles.resultsSkeletonHeading}`} /><div className={`skeleton ${styles.resultsSkeletonFees}`}/></div><ListingSkeleton count={20} /></> : listings.isError && !listings.data ? <div className={styles.state}><h2 className="text-[22px] font-semibold">Something went wrong</h2><p>We couldn&apos;t load the stays. Please try again.</p><button className={styles.outline} disabled={blocked} onClick={() => void listings.refetch()}>Try again</button></div> : all.length === 0 ? <div className={styles.state}><h2 className="text-[22px] font-semibold">No exact matches</h2><p>Try changing or removing some of your filters or adjusting your search area.</p><button className={styles.outline} onClick={() => update({min_price:undefined,max_price:undefined,place_type:undefined,bedrooms:undefined,beds:undefined,bathrooms:undefined,property_types:undefined,amenities:undefined,category:undefined})}>Remove all filters</button></div> : <>
-        <div className={styles.resultsHeading}><h1 className={styles.count}>{total>1000?"Over 1,000":total.toLocaleString("en-IN")} {total===1?"home":"homes"}{params.get("location")?` in ${params.get("location")}`:""}</h1><h2 className="sr-only">Places to stay</h2><span className={styles.fees}><Tag size={26} fill="#ff385c" stroke="white" strokeWidth={1.5}/>Prices include all fees</span></div>
+        <div className={styles.resultsHeading} data-results=""><h1 className={styles.count}>{total>1000?"Over 1,000":total.toLocaleString("en-IN")} {total===1?"home":"homes"}{params.get("location")?` in ${params.get("location")}`:""}</h1><h2 className="sr-only">Places to stay</h2><span className={styles.fees}><Tag size={26} fill="#ff385c" stroke="white" strokeWidth={1.5}/>Prices include all fees</span></div>
         <div className={styles.grid}>{all.map((listing, index) => <div key={listing.id} className={hoveredId === listing.id ? styles.hoveredCard : undefined} onMouseEnter={() => setHoveredId(listing.id)} onMouseLeave={() => setHoveredId(null)}><ListingCard listing={listing} priority={index<2} imageSizes={isMap?"(min-width:1640px) calc((100vw - 192px) / 6), (min-width:1128px) calc((100vw - 172px) / 4), (min-width:744px) calc((100vw - 96px) / 2), calc(100vw - 48px)":undefined} searchParams={params.toString()} /></div>)}</div>
         {pageCount>0&&<nav className={styles.pagination} aria-label="Pagination"><button type="button" aria-label="Previous page" disabled={currentPage===1} onClick={()=>goToPage(currentPage-1)}><ChevronLeft size={16}/></button>{paginationPages(currentPage,pageCount).map((page,index)=>page===null?<span key={`ellipsis-${index}`}>&hellip;</span>:<a key={page} href={pageUrl(page)} aria-label={`Page ${page} of ${pageCount}`} aria-current={page===currentPage?"page":undefined} aria-disabled={page===currentPage} onClick={event=>{if(event.ctrlKey||event.metaKey||event.shiftKey||event.altKey)return;event.preventDefault();goToPage(page);}}>{page}</a>)}<button type="button" aria-label="Next page" disabled={currentPage===pageCount} onClick={()=>goToPage(currentPage+1)}><ChevronRight size={16}/></button></nav>}
 
@@ -88,6 +89,7 @@ function homeRows(listings: Listing[]) {
 
 function HomeListingRow({ title, subtitle, items, priority, onBrowse }: { title: string; subtitle?: string; items: Listing[]; priority: boolean; onBrowse: () => void }) {
   const track = useRef<HTMLDivElement>(null);
+  const pageLoaded = useAfterPageLoad();
   const visibleItems=items.slice(0,8);
   const [position, setPosition] = useState({ start: true, end: items.length <= 1 });
   function measure() {
@@ -101,7 +103,7 @@ function HomeListingRow({ title, subtitle, items, priority, onBrowse }: { title:
   }
   return <section className={styles.homeRow} aria-label={title}>
     <div className={styles.rowHeading}><h2><button type="button" onClick={onBrowse}>{title}<span><ArrowRight size={14}/></span></button></h2><div className={styles.rowControls}><button type="button" aria-label={`Previous homes: ${title}`} disabled={position.start} onClick={()=>move(-1)}><ChevronLeft size={16}/></button><button type="button" aria-label={`Next homes: ${title}`} disabled={position.end} onClick={()=>move(1)}><ChevronRight size={16}/></button></div></div>{subtitle&&<p className={styles.rowSubtitle}>{subtitle}</p>}
-    <div ref={track} className={styles.homeTrack} onScroll={measure}>{visibleItems.map((listing,index)=><ListingCard key={listing.id} listing={listing} compact priority={priority&&index<2} imageSizes="(max-width:549px) 42vw, (max-width:743px) 29vw, (max-width:949px) calc((100vw - 116px) / 4), (max-width:1127px) calc((100vw - 128px) / 5), (max-width:1439px) calc((100vw - 171px) / 6), (min-width:1900px) calc((100vw - 207px) / 9), calc((100vw - 183px) / 7)"/>)}<HomeRowSeeAll items={visibleItems} title={title} onBrowse={onBrowse}/></div>
+    <div ref={track} className={styles.homeTrack} onScroll={measure}>{visibleItems.map((listing,index)=><ListingCard key={listing.id} listing={listing} compact priority={priority&&index<2} deferImage={!pageLoaded&&!(priority&&index<2)} imageSizes="(max-width:549px) 42vw, (max-width:743px) 29vw, (max-width:949px) calc((100vw - 116px) / 4), (max-width:1127px) calc((100vw - 128px) / 5), (max-width:1439px) calc((100vw - 171px) / 6), (min-width:1900px) calc((100vw - 207px) / 9), calc((100vw - 183px) / 7)"/>)}<HomeRowSeeAll items={visibleItems} title={title} onBrowse={onBrowse}/></div>
   </section>;
 }
 
