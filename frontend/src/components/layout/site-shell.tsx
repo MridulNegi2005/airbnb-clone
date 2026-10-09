@@ -1,7 +1,7 @@
 "use client";
 import { Suspense, useCallback, useEffect, useRef, useState, type ReactNode } from "react";
 import Link from "next/link";
-import dynamic from "next/dynamic";
+import { SearchBar } from "@/components/search/search-bar";
 import { usePathname, useRouter, useSearchParams } from "next/navigation";
 import { Globe, Heart, Menu, Search, UserRound, CircleUserRound, Plane, House, Mail, CircleHelp, UserPlus } from "lucide-react";
 import { toast } from "sonner";
@@ -16,7 +16,6 @@ import { BrandLogo } from "./brand-logo";
 import { CompactSearchContent } from "./compact-search-content";
 import { useAfterPageLoad } from "@/hooks/use-after-page-load";
 
-const SearchBar=dynamic(()=>import("@/components/search/search-bar").then(module=>module.SearchBar),{loading:()=> <div className="page-shell" role="status" style={{minHeight:72,paddingBlock:24}}>Loading search…</div>});
 
 function SearchTypeIcon({asset,selected,active,video}:{asset:string;selected:string;active:boolean;video:string}) {
   const [ready,setReady]=useState(false);

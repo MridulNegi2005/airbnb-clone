@@ -2,6 +2,8 @@
 
 import dynamic from "next/dynamic";
 import { useEffect } from "react";
+// Keep the calendar styles in the page CSS: a lazily loaded stylesheet would hold back streamed content until it loads.
+import "./calendar.module.css";
 
 export const loadDatePicker = () => import("./date-picker").then(module => module.DatePicker);
 
