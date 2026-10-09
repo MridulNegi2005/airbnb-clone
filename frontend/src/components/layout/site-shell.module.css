@@ -14,7 +14,7 @@
 .homeTabs button{display:flex;gap:8px;align-items:center;white-space:nowrap;height:62px;font-size:14px;font-weight:500;color:var(--text-secondary);position:relative}
 .homeTabs button[aria-pressed=true]{color:var(--text)}
 .homeTabs button[aria-pressed=true]:after{content:"";height:2px;position:absolute;bottom:0;left:0;right:0;background:var(--text)}
-.tabArt{width:44px;height:48px;display:grid;place-content:center;overflow:hidden;flex-shrink:0}
+.tabArt{width:36px;height:36px;display:grid;place-content:center;overflow:visible;flex-shrink:0}
 .tabMotion{width:72px;height:72px;position:relative;opacity:0;transform-origin:50% 50%}.tabReady{opacity:1}
 
 .tabArt img{position:absolute;inset:0;width:72px;height:72px;max-width:none;object-fit:contain;transition:opacity 300ms cubic-bezier(.2,0,0,1)}
@@ -47,7 +47,7 @@
 .homeSearch>div{transform:none;opacity:1;transition:opacity 75ms linear 175ms}
 .homeSearch :global([data-search-bar]){border-color:transparent;background:transparent;box-shadow:none}
 .homeSearch :global([class*=hasActive]){background:#ebebeb}
-.searchSurface{position:absolute;left:50%;top:102px;transform:translateX(-50%);width:min(850px,calc(100% - 48px));height:66px;border:1px solid #ddd;border-radius:32px;background:#fff;box-shadow:0 3px 12px rgb(0 0 0/.13);pointer-events:none;transition:transform 450ms var(--header-spring),width 450ms var(--header-spring),height 450ms var(--header-spring),border-radius 450ms var(--header-spring),box-shadow 175ms linear}
+.searchSurface{position:absolute;left:50%;top:102px;transform:translateX(-50%);width:min(850px,calc(100% - 48px));height:66px;border:1px solid #ddd;border-radius:32px;background:#fff;box-shadow:0 0 0 1px rgb(0 0 0/.02),0 8px 24px rgb(0 0 0/.1);pointer-events:none;transition:transform 450ms var(--header-spring),width 450ms var(--header-spring),height 450ms var(--header-spring),border-radius 450ms var(--header-spring),box-shadow 175ms linear}
 .homeTabs{transition:opacity 175ms linear,transform 450ms var(--header-spring);transform:translate(-50%,0);width:503px;height:76px}
 .homeTabs button{height:36px;font-size:14px;line-height:18px}
 .homeTabs button:nth-child(1){width:66px;gap:4px}.homeTabs button:nth-child(2){width:104px;padding-left:5px}.homeTabs button:nth-child(3){width:125px}.homeTabs button:nth-child(4){width:106px;padding-left:2px}
@@ -56,9 +56,9 @@
 .homeCollapsed .homeSearch>div{opacity:0;transition:opacity 50ms linear}
 .homeCollapsed .homeTabs{opacity:0;transform:translate(-50%,-87px);pointer-events:none}
 .homeCollapsed .searchSurface{transform:translate(-50%,-77px);width:376px;height:46px;border-radius:40px;box-shadow:0 1px 2px rgb(0 0 0/.08),0 4px 12px rgb(0 0 0/.05)}
-.homeCompact{position:absolute;left:50%;top:25px;transform:translateX(-50%);display:flex;align-items:center;height:46px;width:376px;justify-content:space-between;padding:0 6px 0 12px;border:0;border-radius:40px;gap:0;font-size:14px;line-height:18px;font-weight:500;opacity:0;pointer-events:none;transition:opacity 50ms linear;background:transparent}
-.homeCollapsed .homeCompact{opacity:1;pointer-events:auto;transition:opacity 75ms linear 175ms}
-.homeCompact>span{display:flex;align-items:center;gap:8px;white-space:nowrap}.homeCompact>span+span{border-left:1px solid #ddd;padding-left:16px}.homeCompact>span.compactIcon{border:0;padding:0;width:32px;height:32px;background:#e6004d;color:#fff;border-radius:50%;justify-content:center;flex-shrink:0}
+.homeCompact{position:absolute;left:50%;top:25px;transform:translateX(-50%);display:flex;align-items:center;height:46px;width:376px;justify-content:space-between;padding:0 6px 0 12px;border:0;border-radius:40px;gap:0;font-size:14px;line-height:18px;font-weight:500;pointer-events:none;background:transparent}
+.homeCollapsed .homeCompact{pointer-events:auto}
+.homeCompact>span{display:flex;align-items:center;gap:8px;white-space:nowrap}.homeCompact>span+span{border-left:1px solid #ddd;padding-left:16px}.homeCompact>span.compactIcon{border:0;padding:0;width:32px;height:32px;background:#e6004d;color:#fff;border-radius:50%;justify-content:center;flex-shrink:0;opacity:0;transform:translate(226px,87px) scale(1.5);transition:transform 450ms var(--header-spring),opacity 0s linear 450ms}
 .compactHouse{width:24px;height:24px;display:grid;place-content:center;overflow:hidden;flex-shrink:0}.compactHouse img{width:48px;height:48px;max-width:none}
 .homeDimmer{inset:200px 0 0;background:rgb(0 0 0/.25);animation:header-dim-in 150ms linear}
 .detailHeader :global(.compact-search){width:376px;height:46px;border-radius:40px;border-color:#ddd;box-shadow:0 1px 2px rgb(0 0 0/.08),0 4px 12px rgb(0 0 0/.05)}
@@ -96,3 +96,10 @@
 @media(prefers-reduced-motion:reduce){.tabTwirl,.tabSelection{display:none}.tabMotion[data-video-ready=true] .tabDefault{opacity:1!important}.homeTabs button[aria-pressed=true] .tabMotion[data-video-ready=true] .tabDefault{opacity:0!important}.homeTabs button[aria-pressed=true] .tabMotion[data-video-ready=true] .tabSelected{opacity:1!important}.homeTabs button:hover .tabArt,.homeTabs button:active .tabArt{scale:1}}
 @media(min-width:744px){.detailHeader :global(.host-link),.detailHeader :global(.user-menu-button){transition:background-color 300ms cubic-bezier(.2,0,0,1),transform 250ms cubic-bezier(.2,0,0,1)}.detailHeader :global(.user-menu-button[aria-expanded=true]){background:#ebebeb}.detailHeader :global(.user-menu-button:active),.detailHeader :global(.host-link:active){scale:1;transform:scale(.96)}}
 @media(prefers-reduced-motion:reduce){.detailHeader :global(.host-link),.detailHeader :global(.user-menu-button){transition:none}}
+.homeCompact>span:not(.compactIcon){opacity:0;transition:opacity 50ms linear}
+.homeCollapsed .homeCompact>span:not(.compactIcon){opacity:1;transition:opacity 75ms linear 175ms}
+.homeCollapsed .homeCompact>span.compactIcon{opacity:1;transform:none;transition:transform 450ms var(--header-spring),opacity 0s}
+.homeCollapsed .homeSearch :global([class*=searchButton]){opacity:0;transition:none}
+.homeTabs button:nth-child(1){gap:9px}.homeTabs button:nth-child(2){gap:16px}
+.homeTabs button:nth-child(4){gap:12px}
+@media(prefers-reduced-motion:reduce){.homeCompact>span,.homeCollapsed .homeCompact>span{transition:none}}
