@@ -76,14 +76,27 @@ function InitialBounds({ listings, bounds, searchKey, onFit }: Pick<ExploreMapPr
   const map = useMap();
   const initialized = useRef<string | null>(null);
   const activeSearch = useRef<string | null>(null);
+  const fitListener = useRef<google.maps.MapsEventListener | null>(null);
+  useEffect(() => () => { fitListener.current?.remove(); }, []);
   useEffect(() => {
     if (!map) return;
-    if (activeSearch.current !== searchKey) { onFit(); activeSearch.current = searchKey; }
+    if (activeSearch.current !== searchKey) { fitListener.current?.remove(); fitListener.current = null; onFit(); activeSearch.current = searchKey; }
     if (initialized.current === searchKey || !listings.length) return;
     const fit = new google.maps.LatLngBounds();
     if (bounds) { fit.extend({ lat: bounds.south, lng: bounds.west }); fit.extend({ lat: bounds.north, lng: bounds.east }); }
     else listings.forEach((listing) => { if (listing.latitude !== null && listing.longitude !== null) fit.extend({ lat: listing.latitude, lng: listing.longitude }); });
-    if (!fit.isEmpty()) { onFit(); map.fitBounds(fit, 60); initialized.current = searchKey; }
+    if (!fit.isEmpty()) {
+      onFit();
+      fitListener.current?.remove();
+      // fitBounds can zoom a single result to a rooftop. Correct only this fit,
+      // once its camera settles; later user zoom remains unrestricted.
+      fitListener.current = google.maps.event.addListenerOnce(map, "idle", () => {
+        fitListener.current = null;
+        if ((map.getZoom() ?? 0) > 15) { onFit(); map.setZoom(15); }
+      });
+      map.fitBounds(fit, 60);
+      initialized.current = searchKey;
+    }
   }, [map, listings, bounds, searchKey, onFit]);
   return null;
 }
