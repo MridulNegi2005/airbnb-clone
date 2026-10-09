@@ -40,7 +40,7 @@ export function ListingDetailView({ listing, initialReviews }: { listing: Listin
       if (entry) setNavigationStuck(media.matches && !entry.isIntersecting && entry.boundingClientRect.bottom <= 0);
     });
     observer.observe(photos);
-    const resize = () => { if (!media.matches) setNavigationStuck(false); };
+    const resize = () => setNavigationStuck(media.matches && photos.getBoundingClientRect().bottom <= 0);
     media.addEventListener("change", resize);
     return () => { observer.disconnect(); media.removeEventListener("change", resize); };
   }, [listing.id]);

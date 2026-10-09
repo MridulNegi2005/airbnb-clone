@@ -5,6 +5,7 @@ import { ArrowRight, ChevronLeft, ChevronRight, List, Map } from "lucide-react";
 import dynamic from "next/dynamic";
 import { useListings, type InitialListings } from "@/hooks/use-listings";
 import { useSearch } from "@/hooks/use-search";
+import { useApiCooldown } from "@/hooks/use-api-cooldown";
 import { ListingCard } from "@/components/listings/listing-card";
 const ExploreMap=dynamic(()=>import("@/components/maps").then(module=>module.ExploreMap),{loading:()=> <div role="status" style={{height:"100%",minHeight:400,background:"var(--surface)",display:"grid",placeContent:"center"}}>Loading map…</div>});
 import type { ListingCard as Listing, MapBounds } from "@/types/api";
@@ -23,7 +24,9 @@ export function ExploreClient({ initialData }: { initialData?: InitialListings }
   const desktopMap=useSyncExternalStore(subscribeDesktop,desktopSnapshot,()=>false);
   const isMap=params.get("view")==="map"||(desktopMap&&params.get("view")!=="list");
   const listings = useListings(homepage || params.get("view") === "map" ? { ...query, page_size: 50 } : query, initialData);
-  const { hasNextPage, isFetchingNextPage, fetchNextPage } = listings;
+  const { hasNextPage, isFetchingNextPage, isFetchNextPageError, fetchNextPage } = listings;
+  const { blocked, record } = useApiCooldown();
+  useEffect(() => { record(listings.error); }, [listings.error, record]);
   const [filtersOpen, setFiltersOpen] = useState(false);
   const [filtersMounted,setFiltersMounted]=useState(false);
   const [hoveredId, setHoveredId] = useState<number | null>(null);
@@ -35,25 +38,25 @@ export function ExploreClient({ initialData }: { initialData?: InitialListings }
     if (Object.entries(values).some(([key, value]) => params.get(key) !== value)) update(values, false, true);
   }
   useEffect(() => {
-    if (homepage || !sentinel.current || !hasNextPage || typeof IntersectionObserver === "undefined") return;
+    if (homepage || !sentinel.current || !hasNextPage || isFetchNextPageError || blocked || typeof IntersectionObserver === "undefined") return;
     const observer = new IntersectionObserver(([entry]) => {
       if (entry?.isIntersecting && !isFetchingNextPage) void fetchNextPage();
     }, { rootMargin: "800px" });
     observer.observe(sentinel.current);
     return () => observer.disconnect();
-  }, [homepage, hasNextPage, isFetchingNextPage, fetchNextPage]);
-  if(homepage) return <section className={styles.homepage} aria-label="Discover homes"><h1 className="sr-only">Airbnb clone homepage</h1>{listings.isPending?<HomepageSkeleton/>:listings.isError&&!listings.data?<div className={styles.state}><h2>Unable to load homes</h2><p>Please try again in a moment.</p><button className={styles.outline} onClick={()=>void listings.refetch()}>Try again</button></div>:all.length===0?<div className={styles.state}><h2>No homes available yet</h2><p>Check back for new places to stay.</p></div>:homeRows(all).map((row,index)=><HomeListingRow key={row.title} title={row.title} items={row.items} priority={index<2} onBrowse={()=>{const cities=new Set(row.items.map(item=>item.city));if(cities.size===1)update({location:row.items[0]?.city,search:"1",view:window.innerWidth>=1128?"map":undefined},true);else update({search:"1",view:window.innerWidth>=1128?"map":undefined,sw_lat:String(Math.min(...row.items.map(item=>item.latitude))-.015),sw_lng:String(Math.min(...row.items.map(item=>item.longitude))-.015),ne_lat:String(Math.max(...row.items.map(item=>item.latitude))+.015),ne_lng:String(Math.max(...row.items.map(item=>item.longitude))+.015)},true);}}/>)}</section>;
+  }, [homepage, hasNextPage, isFetchingNextPage, isFetchNextPageError, blocked, fetchNextPage]);
+  if(homepage) return <section className={styles.homepage} aria-label="Discover homes"><h1 className="sr-only">Airbnb clone homepage</h1>{listings.isPending?<HomepageSkeleton/>:listings.isError&&!listings.data?<div className={styles.state}><h2>Unable to load homes</h2><p>Please try again in a moment.</p><button className={styles.outline} disabled={blocked} onClick={()=>void listings.refetch()}>Try again</button></div>:all.length===0?<div className={styles.state}><h2>No homes available yet</h2><p>Check back for new places to stay.</p></div>:homeRows(all).map((row,index)=><HomeListingRow key={row.title} title={row.title} items={row.items} priority={index<2} onBrowse={()=>{const cities=new Set(row.items.map(item=>item.city));if(cities.size===1)update({location:row.items[0]?.city,search:"1",view:window.innerWidth>=1128?"map":undefined},true);else update({search:"1",view:window.innerWidth>=1128?"map":undefined,sw_lat:String(Math.min(...row.items.map(item=>item.latitude))-.015),sw_lng:String(Math.min(...row.items.map(item=>item.longitude))-.015),ne_lat:String(Math.max(...row.items.map(item=>item.latitude))+.015),ne_lng:String(Math.max(...row.items.map(item=>item.longitude))+.015)},true);}}/>)}</section>;
   return <>
     <CategoryBar onFilters={() => {setFiltersMounted(true);setFiltersOpen(true);}} />
     <section className={`${styles.page} ${isMap ? styles.mapView : !params.get("view")?styles.autoMapView:""}`} >
       <h1 className="sr-only">Find your next stay</h1>
       <section className={styles.listPane} aria-label="Available stays">
       <h2 className="sr-only">Places to stay</h2>
-      {listings.isPending ? <ListingSkeleton /> : listings.isError && !listings.data ? <div className={styles.state}><h2 className="text-[22px] font-semibold">Something went wrong</h2><p>We couldn&apos;t load the stays. Please try again.</p><button className={styles.outline} onClick={() => void listings.refetch()}>Try again</button></div> : all.length === 0 ? <div className={styles.state}><h2 className="text-[22px] font-semibold">No exact matches</h2><p>Try changing or removing some of your filters or adjusting your search area.</p><button className={styles.outline} onClick={() => update({}, true)}>Remove all filters</button></div> : <>
+      {listings.isPending ? <ListingSkeleton /> : listings.isError && !listings.data ? <div className={styles.state}><h2 className="text-[22px] font-semibold">Something went wrong</h2><p>We couldn&apos;t load the stays. Please try again.</p><button className={styles.outline} disabled={blocked} onClick={() => void listings.refetch()}>Try again</button></div> : all.length === 0 ? <div className={styles.state}><h2 className="text-[22px] font-semibold">No exact matches</h2><p>Try changing or removing some of your filters or adjusting your search area.</p><button className={styles.outline} onClick={() => update({}, true)}>Remove all filters</button></div> : <>
         {params.toString() && <p className={styles.count}>{listings.data?.pages[0]?.total} stays{params.get("location") ? ` in ${params.get("location")}` : ""}</p>}
         <div className={styles.grid}>{all.map((listing, index) => <div key={listing.id} className={hoveredId === listing.id ? styles.hoveredCard : undefined} onMouseEnter={() => setHoveredId(listing.id)} onMouseLeave={() => setHoveredId(null)}><ListingCard listing={listing} priority={index<2} imageSizes={isMap?"(min-width:1640px) calc((100vw - 192px) / 6), (min-width:1128px) calc((100vw - 172px) / 4), (min-width:744px) calc((100vw - 96px) / 2), calc(100vw - 48px)":undefined} searchParams={params.toString()} /></div>)}</div>
         {listings.isFetchingNextPage && <div className="mt-10"><ListingSkeleton count={4} /></div>}
-        {listings.hasNextPage && <div ref={sentinel} className={styles.more}><button className={styles.darkButton} disabled={listings.isFetchingNextPage} onClick={() => void listings.fetchNextPage()}>{listings.isFetchingNextPage ? "Loading stays..." : "Show more"}</button></div>}
+        {listings.hasNextPage && <div ref={sentinel} className={styles.more}><button className={styles.darkButton} disabled={listings.isFetchingNextPage || blocked} onClick={() => void listings.fetchNextPage()}>{listings.isFetchingNextPage ? "Loading stays..." : "Show more"}</button></div>}
         {listings.isFetchNextPageError && <p className="text-center text-error">More stays could not be loaded. Use Show more to try again.</p>}
       </>}
       </section>
