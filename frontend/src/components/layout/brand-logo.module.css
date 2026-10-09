@@ -1,8 +1,9 @@
-.logo.logo.logo{width:102px;min-width:0;height:80px;flex-shrink:0;gap:0;font-size:14px;font-weight:400;letter-spacing:normal}
+.logo.logo.logo{position:relative;width:102px;min-width:0;height:80px;flex-shrink:0;gap:0;color:#ff385c;font-size:14px;font-weight:400;letter-spacing:normal;transition:color 250ms cubic-bezier(.2,0,0,1)}
 .logo.logo>img{height:32px;object-fit:contain}
 .logo.logo>.wordmark{display:block;width:102px}
 .logo.logo>.belo{display:none;width:30px}
-.logo.logo.compact{width:30px;min-width:0;height:32px}
-.logo.compact>.wordmark{display:none}
-.logo.compact>.belo{display:block}
-@media(max-width:1127px){.logo.logo.logo{width:30px}.logo.logo>.wordmark{display:none}.logo.logo>.belo{display:block}}
+.logo:before{content:"";position:absolute;top:calc(50% - 28px);bottom:calc(50% - 28px);left:-12px;right:-12px;border-radius:12px;box-shadow:none;pointer-events:none}
+.logo.logo:focus-visible{outline:none;outline-offset:1px}
+.logo:focus-visible:before{box-shadow:0 0 0 2px #222;transition:box-shadow 200ms cubic-bezier(.2,0,0,1)}
+@media(max-width:949px){.logo.logo.logo{width:30px}.logo.logo>.wordmark{display:none}.logo.logo>.belo{display:block}}
+@media(prefers-reduced-motion:reduce){.logo.logo.logo,.logo:before,.logo:focus-visible:before{transition:none}}
