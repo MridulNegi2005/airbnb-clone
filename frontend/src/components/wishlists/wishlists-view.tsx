@@ -3,7 +3,7 @@
 import { useEffect, useRef, useState, useSyncExternalStore } from "react";
 import Link from "next/link";
 import dynamic from "next/dynamic";
-import { ArrowLeft, ChevronRight, Eye, Heart, MoreHorizontal, Pencil, Share2, Trash2, X } from "lucide-react";
+import { ChevronLeft, ChevronRight, Eye, Heart, Pencil, Share2, Trash2, X } from "lucide-react";
 import { useQueries, useQuery, useQueryClient } from "@tanstack/react-query";
 import type { DateRange } from "react-day-picker";
 import { toast } from "sonner";
@@ -13,11 +13,12 @@ import { toDateString } from "@/lib/dates";
 import { formatDateRange, plural } from "@/lib/format";
 import { useAuth } from "@/providers/auth-provider";
 import { AppImage } from "@/components/ui/app-image";
-import { ListingCard } from "@/components/listings/listing-card";
 import { Modal } from "@/components/ui/modal";
 import { useApiCooldown } from "@/hooks/use-api-cooldown";
 import type { SavedListing, WishlistDetail, WishlistSummary } from "@/types/api";
 import { WishlistDialog } from "./wishlist-dialog";
+import { WishlistListingCard } from "./wishlist-listing-card";
+import { WishlistDatePopover } from "./wishlist-date-popover";
 import styles from "./wishlists.module.css";
 
 const WishlistMap = dynamic(() => import("@/components/maps").then(module => module.WishlistMap), { ssr: false, loading: () => <div className={styles.mapLoading} role="status">Loading map…</div> });
@@ -40,11 +41,12 @@ export function WishlistsView({ id }: { id?: number }) {
   const [settingsStep, setSettingsStep] = useState<"settings" | "rename" | "delete">("settings");
   const [name, setName] = useState(""), [pending, setPending] = useState(false), [error, setError] = useState("");
   const [datesMounted, setDatesMounted] = useState(false);
+  const [dateMode, setDateMode] = useState("Dates");
   const [dates, setDates] = useState<DateRange>(), [draftDates, setDraftDates] = useState<DateRange>();
   const [guests, setGuests] = useState(1), [draftGuests, setDraftGuests] = useState(1);
   const desktop = useSyncExternalStore(subscribeDesktop, isDesktop, () => false);
   const lists = useQuery({ queryKey: queryKeys.wishlists, queryFn: ({ signal }) => getWishlists(signal), enabled: status === "authenticated" && id === undefined });
-  const covers = useQueries({ queries: (id === undefined ? lists.data ?? [] : []).map(list => ({ queryKey: queryKeys.wishlistDetail(list.id), queryFn: ({ signal }: { signal: AbortSignal }) => getWishlist(list.id, signal), enabled: status === "authenticated" && list.item_count > 1 })) });
+  const covers = useQueries({ queries: (id === undefined ? lists.data ?? [] : []).map(list => ({ queryKey: queryKeys.wishlistDetail(list.id), queryFn: ({ signal }: { signal: AbortSignal }) => getWishlist(list.id, signal), enabled: status === "authenticated" && list.name.toLowerCase() === "recently viewed" && list.item_count > 1 })) });
   const detail = useQuery({ queryKey: queryKeys.wishlistDetail(id ?? 0), queryFn: ({ signal }) => getWishlist(id!, signal), enabled: status === "authenticated" && id !== undefined });
   const saved = useQuery({ queryKey: queryKeys.savedListings, queryFn: ({ signal }) => getSavedListings(signal), enabled: status === "authenticated" && id !== undefined });
   useEffect(() => { if (status === "anonymous" && !prompted.current) { prompted.current = true; openAuth(); } }, [status, openAuth]);
@@ -95,17 +97,18 @@ export function WishlistsView({ id }: { id?: number }) {
   if (id === undefined) return <section className={styles.page}>
     <header className={styles.heading}><h1>Wishlists</h1></header>
     {lists.data?.length ? <div className={styles.collections}>{lists.data.map((list, index) => <Link href={`/wishlists/${list.id}`} key={list.id} className={styles.collection} aria-label={`Wishlist for ${list.name}, ${list.item_count} saved`}>
-      <div className={styles.cover}>{covers[index]?.data && covers[index].data.listings.length > 1 ? <div className={styles.collage}>{coverImages(covers[index].data.listings).map((image, tile) => <span key={tile}><AppImage src={image} alt="" fill sizes="151px" /></span>)}</div> : list.cover_image_url ? <AppImage src={list.cover_image_url} alt="" fill priority={index === 0} sizes="(max-width:743px) calc((100vw - 64px)/2), (max-width:1127px) calc((100vw - 144px)/3), 302px" /> : <Heart size={48} />}{user && list.item_count > 0 && <span className={styles.ownerAvatar} aria-label={`Wishlist owner: ${user.name}`}>{user.avatar_url ? <AppImage src={user.avatar_url} alt="" fill sizes="24px" /> : user.name.slice(0, 1)}</span>}</div>
+      <div className={styles.cover}>{list.name.toLowerCase() === "recently viewed" && covers[index]?.data && covers[index].data.listings.length > 1 ? <div className={styles.collage}>{coverImages(covers[index].data.listings).map((image, tile) => <span key={tile}><AppImage src={image} alt="" fill sizes="151px" /></span>)}</div> : list.cover_image_url ? <AppImage src={list.cover_image_url} alt="" fill priority={index === 0} sizes="(max-width:743px) calc((100vw - 64px)/2), (max-width:1127px) calc((100vw - 144px)/3), 302px" /> : <Heart size={48} />}{user && list.item_count > 0 && <span className={styles.ownerAvatar} aria-label={`Wishlist owner: ${user.name}`}>{user.avatar_url ? <AppImage src={user.avatar_url} alt="" fill sizes="24px" /> : user.name.slice(0, 1)}</span>}</div>
       <h2>{list.name}</h2><p>{list.item_count} saved</p>
     </Link>)}</div> : <div className={styles.empty}><h2>Your next trip starts here</h2><p>Tap the heart on a place you love to save it to a wishlist.</p><Link href="/" className="dark-button">Start exploring</Link></div>}
   </section>;
 
+  const DatesDialog = desktop ? WishlistDatePopover : Modal;
   return <section className={styles.detailPage}>
     <div className={styles.detailPane}>
-      <div className={styles.detailControls}><Link href="/wishlists" className="icon-button" aria-label="Back to wishlists"><ArrowLeft size={20} /></Link><button type="button" className="icon-button" aria-label="Wishlist settings" onClick={() => open("settings")}><MoreHorizontal size={20} /></button></div>
+      <div className={styles.detailControls}><Link href="/wishlists" className="icon-button" aria-label="Back to wishlists"><ChevronLeft size={16} /></Link></div>
       <header className={styles.detailHeading}><h1>{detail.data?.name}</h1></header>
-      <div className={styles.filters} aria-label="Travel preferences"><button className={styles.desktopPreference} type="button" onClick={() => open("dates")} aria-haspopup="dialog">{dateLabel}</button><button className={styles.desktopPreference} type="button" onClick={() => open("guests")} aria-haspopup="dialog">{plural(guests, "guest")}</button><button className={styles.mobilePreference} type="button" onClick={() => open("dates")} aria-haspopup="dialog">{dates?.from && dates.to ? dateLabel : "Dates"} · {plural(guests, "guest")}</button><button className={styles.sharePreference} type="button" disabled aria-describedby="wishlist-sharing-status">Share <Share2 size={14} /></button><span id="wishlist-sharing-status" className="sr-only">Wishlist sharing is coming soon.</span></div>
-      {places.length ? <div><h2 className="sr-only">Saved stays</h2><div className={`listing-grid ${styles.grid}`}>{places.map((listing, index) => <div key={listing.id}><ListingCard listing={listing} priority={index === 0} searchParams={params.toString()} imageSizes="(max-width:743px) calc(100vw - 48px), (max-width:1127px) calc((100vw - 72px)/2), calc((63vw - 96px)/3)" /><button className={styles.noteButton} type="button" disabled title="Wishlist notes are coming soon">Add note <span>Coming soon</span></button></div>)}</div></div> : <div className={styles.empty}><h2>Find a place you love</h2><p>Your saved places will appear here.</p><Link href="/" className="dark-button">Start exploring</Link></div>}
+      <div className={styles.filters} aria-label="Travel preferences"><button className={styles.desktopPreference} type="button" onClick={() => open("dates")} aria-haspopup="dialog">{dateLabel}</button><button className={styles.desktopPreference} type="button" onClick={() => open("guests")} aria-haspopup="dialog">{plural(guests, "guest")}</button><button className={styles.mobilePreference} type="button" onClick={() => open("dates")} aria-haspopup="dialog">{dates?.from && dates.to ? dateLabel : "Dates"} · {plural(guests, "guest")}</button><button className={styles.collaborators} type="button" aria-label="Wishlist settings" aria-haspopup="dialog" onClick={() => open("settings")}><span>{user?.avatar_url ? <AppImage src={user.avatar_url} alt="" fill sizes="32px" /> : user?.name.slice(0, 1)}</span><ChevronRight size={16} /></button></div>
+      {places.length ? <div><h2 className="sr-only">Saved stays</h2><div className={styles.grid}>{places.map((listing, index) => <WishlistListingCard key={listing.id} listing={listing} priority={index === 0} searchParams={params.toString()} />)}</div></div> : <div className={styles.empty}><h2>Find a place you love</h2><p>Your saved places will appear here.</p><Link href="/" className="dark-button">Start exploring</Link></div>}
     </div>
     {places.length > 0 && desktop && <aside className={styles.map} aria-label="Saved places map"><WishlistMap listings={places} /></aside>}
     <WishlistDialog open={mode === "settings" || mode === "rename" || mode === "delete"} title={settingsStep === "settings" ? "Settings" : settingsStep === "rename" ? "Rename wishlist" : "Delete this wishlist?"} onClose={close} onBack={settingsStep === "rename" || settingsStep === "delete" ? backToSettings : undefined}
@@ -115,9 +118,9 @@ export function WishlistsView({ id }: { id?: number }) {
       </form>}
       {error && <p className="error-text" role="alert">{error}</p>}
     </WishlistDialog>
-    <Modal open={mode === "dates"} title="Add dates" width={720} onClose={close} footer={<div className={styles.filterFooter}><button className="text-button" type="button" onClick={close}>Cancel</button><button className="dark-button" type="button" disabled={mode !== "dates" || Boolean(draftDates?.from && !draftDates.to)} onClick={() => { if (mode !== "dates") return; setDates(draftDates); setGuests(draftGuests); setMode(null); }}>Save</button></div>}>
-      {datesMounted && <><DatePanel value={draftDates} onChange={setDraftDates} /><div className={`${styles.guestRow} ${styles.mobileDateGuests}`}><strong>Guests</strong><div className="stepper"><button type="button" aria-label="Remove guest" disabled={draftGuests <= 1} onClick={() => setDraftGuests(value => value - 1)}>−</button><span aria-live="polite">{draftGuests}</span><button type="button" aria-label="Add guest" disabled={draftGuests >= 16} onClick={() => setDraftGuests(value => value + 1)}>+</button></div></div></>}
-    </Modal>
+    <DatesDialog open={mode === "dates"} title="Add dates" width={desktop ? 754 : 720} presentation={desktop ? "calendar" : "default"} className={desktop ? styles.datesPanel : ""} backdropClassName={desktop ? styles.datesBackdrop : ""} exitDuration={desktop ? 400 : 150} onClose={close} footer={<div className={styles.filterFooter}><button className="text-button" type="button" disabled={desktop && !draftDates} onClick={desktop ? () => setDraftDates(undefined) : close}>{desktop ? "Reset" : "Cancel"}</button><button className="dark-button" type="button" disabled={mode !== "dates" || Boolean(draftDates?.from && !draftDates.to)} onClick={() => { if (mode !== "dates") return; setDates(draftDates); setGuests(draftGuests); setMode(null); }}>Save</button></div>}>
+      {datesMounted && <>{desktop && <div className={styles.dateTabs} role="tablist" aria-label="Choose travel dates">{["Dates", "Flexible"].map(tab => <button key={tab} type="button" role="tab" aria-selected={dateMode === tab} onClick={() => setDateMode(tab)}>{tab === "Dates" ? "Choose dates" : "Flexible dates"}</button>)}</div>}<DatePanel search={desktop && dateMode === "Flexible"} selectedMode={dateMode} onModeChange={setDateMode} value={draftDates} onChange={setDraftDates} />{desktop && <div className={styles.dateSelection}>{draftDates?.from && draftDates.to ? formatDateRange(draftDates.from, draftDates.to) : "Choose dates"}</div>}<div className={`${styles.guestRow} ${styles.mobileDateGuests}`}><strong>Guests</strong><div className="stepper"><button type="button" aria-label="Remove guest" disabled={draftGuests <= 1} onClick={() => setDraftGuests(value => value - 1)}>−</button><span aria-live="polite">{draftGuests}</span><button type="button" aria-label="Add guest" disabled={draftGuests >= 16} onClick={() => setDraftGuests(value => value + 1)}>+</button></div></div></>}
+    </DatesDialog>
     <WishlistDialog open={mode === "guests"} title="Guests" onClose={close} footer={<><button className="text-button" type="button" onClick={close}>Cancel</button><button className="dark-button" type="button" disabled={mode !== "guests"} onClick={() => { if (mode !== "guests") return; setGuests(draftGuests); setMode(null); }}>Save</button></>}>
       <div className={styles.guestRow}><div><strong>Guests</strong><p>Ages 2 or above</p></div><div className="stepper"><button type="button" aria-label="Remove guest" disabled={draftGuests <= 1} onClick={() => setDraftGuests(value => value - 1)}>−</button><span aria-live="polite">{draftGuests}</span><button type="button" aria-label="Add guest" disabled={draftGuests >= 16} onClick={() => setDraftGuests(value => value + 1)}>+</button></div></div>
     </WishlistDialog>
