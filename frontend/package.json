@@ -4,9 +4,11 @@
   "private": true,
   "scripts": {
     "dev": "next dev --hostname 127.0.0.1",
+    "prebuild": "npm run cf-typegen",
     "build": "next build",
     "start": "next start --hostname 127.0.0.1",
     "lint": "eslint . --max-warnings=0",
+    "pretypecheck": "npm run cf-typegen",
     "typecheck": "tsc --noEmit",
     "build:cloudflare": "node --test scripts/patch-preview-manifest.test.mjs && node scripts/cloudflare.mjs build",
     "verify:deployment": "node scripts/check-deployment.mjs",
